@@ -1,0 +1,115 @@
+/* ═══════════════════════════════════════════════════════════════
+   Shotcaller — design tokens
+   Lifted verbatim from the CueFlow UI Kit. No new colors, no rounded
+   corners, no decorative gradients — hairline, typographic, monospaced.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Color tokens ── */
+  --bg:        #07070a;
+  --canvas:    #0a0a0d;
+  --surface:   #111116;
+  --surface2:  #16161c;
+  --surface3:  #1d1d24;
+  --hair:      #22222a;
+  --hair2:     #2e2e38;
+  --hair3:     #3a3a48;
+
+  --txt-hi:    #eef0f3;
+  --txt:       #c8c9d0;
+  --txt-mid:   #7c7e8a;
+  --txt-low:   #4a4c56;
+  --txt-dim:   #2f3038;
+
+  /* Semantic accents */
+  --primary:    #f0a838;  /* Amber — standby / primary action */
+  --primary-bg: rgba(240,168,56,0.10);
+  --primary-dim:rgba(240,168,56,0.55);
+  --amber:      #f0a838;
+  --amber-bg:   rgba(240,168,56,0.10);
+
+  --danger:     #ff2848;  /* Tally red / live indicator */
+  --danger-bg:  rgba(255,40,72,0.10);
+  --red:        #ff2848;
+
+  --success:    #18d986;
+  --success-bg: rgba(24,217,134,0.08);
+  --green:      #18d986;
+
+  --info:       #4c8dff;
+  --info-bg:    rgba(76,141,255,0.10);
+  --blue:       #4c8dff;
+
+  --warning:    #f0a838;
+  --warning-bg: var(--primary-bg);
+
+  /* ── Spacing scale (4-px grid) ── */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* ── Typography ── */
+  --mono:  'JetBrains Mono', ui-monospace, monospace;
+  --sans:  'IBM Plex Sans', system-ui, sans-serif;
+  --cond:  'IBM Plex Sans Condensed', 'IBM Plex Sans', sans-serif;
+
+  /* ── Component sizing ── */
+  --ctrl-sm: 28px;
+  --ctrl-md: 36px;
+  --ctrl-lg: 44px;
+
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--primary);
+}
+
+/* Global reset — border-radius: 0 everywhere per spec. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0 !important;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-feature-settings: 'ss01', 'ss02';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden; /* desktop app — no page scroll */
+}
+
+button { font-family: inherit; color: inherit; }
+input, textarea, select { font-family: inherit; color: inherit; }
+
+/* Scrollbars — 4px, --hair2 thumb, --surface track (per spec). */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--hair2); }
+::-webkit-scrollbar-thumb:hover { background: var(--hair3); }
+* { scrollbar-width: thin; scrollbar-color: var(--hair2) var(--surface); }
+
+/* Shared eyebrow / label typography helpers. */
+.eyebrow {
+  font-family: var(--cond);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--txt-mid);
+}
+.mono { font-family: var(--mono); }

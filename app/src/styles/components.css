@@ -1,0 +1,231 @@
+/* ═══════════════════════════════════════════════════════════════
+   Shotcaller — reusable component primitives (from CueFlow UI Kit)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: var(--ctrl-md);
+  padding: 0 var(--s-4);
+  font-family: var(--cond);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--surface2);
+  color: var(--txt);
+  border: 1px solid var(--hair2);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+  outline: none;
+  transition: background 80ms linear, border-color 80ms linear, color 80ms linear;
+}
+.btn svg {
+  width: 14px; height: 14px;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.btn:hover { background: var(--surface3); border-color: var(--hair3); color: var(--txt-hi); }
+.btn:active { background: var(--surface); transform: translateY(0.5px); }
+.btn:focus-visible { box-shadow: var(--focus); }
+.btn:disabled, .btn.is-disabled {
+  color: var(--txt-low); background: var(--surface); border-color: var(--hair);
+  cursor: not-allowed; transform: none;
+}
+.btn.sm { height: var(--ctrl-sm); padding: 0 var(--s-3); font-size: 10px; gap: 6px; }
+.btn.sm svg { width: 12px; height: 12px; }
+.btn.lg { height: var(--ctrl-lg); padding: 0 var(--s-5); font-size: 12px; letter-spacing: 0.16em; }
+.btn.lg svg { width: 16px; height: 16px; }
+.btn.full { width: 100%; }
+
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #06060a; }
+.btn.primary:hover { background: #ffba50; border-color: #ffba50; color: #06060a; }
+.btn.primary:active { background: #d8941f; border-color: #d8941f; }
+.btn.primary:disabled, .btn.primary.is-disabled { background: var(--surface); border-color: var(--hair); color: var(--txt-low); }
+
+.btn.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover { background: var(--danger-bg); color: #fff; }
+.btn.danger.solid { background: var(--danger); color: #fff; }
+.btn.danger.solid:hover { background: #ff4663; border-color: #ff4663; }
+
+.btn.ghost { background: transparent; border-color: transparent; color: var(--txt-mid); }
+.btn.ghost:hover { color: var(--txt-hi); background: var(--surface2); border-color: var(--hair2); }
+.btn.ghost:disabled { color: var(--txt-dim); background: transparent; border-color: transparent; }
+
+.btn.icon { width: var(--ctrl-md); padding: 0; }
+.btn.icon.sm { width: var(--ctrl-sm); }
+.btn.icon.lg { width: var(--ctrl-lg); }
+
+.btn.active { background: var(--primary); border-color: var(--primary); color: #06060a; }
+
+/* ── Inputs ── */
+.input {
+  display: flex;
+  align-items: center;
+  height: var(--ctrl-md);
+  background: var(--surface2);
+  border: 1px solid var(--hair2);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--txt-hi);
+  position: relative;
+  transition: border-color 80ms linear, background 80ms linear;
+}
+.input input, .input textarea, .input select {
+  flex: 1; height: 100%;
+  background: transparent; border: none; outline: none;
+  padding: 0 var(--s-3);
+  font-family: inherit; font-size: inherit; color: inherit;
+  min-width: 0;
+}
+.input textarea { padding: var(--s-3); line-height: 1.5; resize: vertical; }
+.input input::placeholder, .input textarea::placeholder { color: var(--txt-low); font-family: var(--sans); }
+.input:hover { border-color: var(--hair3); }
+.input:focus-within { border-color: var(--primary); background: var(--surface); box-shadow: inset 0 0 0 1px var(--primary-dim); }
+.input.is-error { border-color: var(--danger); }
+.input.area { height: auto; align-items: stretch; }
+.input.sm { height: var(--ctrl-sm); font-size: 11.5px; }
+.input .ico { display: grid; place-items: center; width: 36px; height: 100%; color: var(--txt-mid); }
+.input .ico svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.fld { display: flex; flex-direction: column; gap: 6px; }
+.fld-lbl {
+  font-family: var(--cond);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--txt-mid);
+}
+
+/* ── Badges / pills ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 7px;
+  font-family: var(--cond);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--surface2); color: var(--txt-mid);
+  border: 1px solid var(--hair2);
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50% !important; background: currentColor; flex-shrink: 0; }
+.badge.success { color: var(--success); border-color: var(--success); background: var(--success-bg); }
+.badge.danger  { color: var(--danger);  border-color: var(--danger);  background: var(--danger-bg); }
+.badge.info    { color: var(--info);    border-color: var(--info);    background: var(--info-bg); }
+
+/* category pills (vocabulary) */
+.cat-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  font-family: var(--cond);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+}
+.cat-pill.character { color: var(--green); }
+.cat-pill.shot_size { color: var(--blue); }
+.cat-pill.custom { color: var(--amber); }
+.cat-pill.is-dim { opacity: 0.4; }
+
+/* ── Modal ── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(5,5,7,0.85);
+  backdrop-filter: blur(2px);
+  z-index: 200;
+  display: grid; place-items: center;
+}
+.modal {
+  position: relative;
+  width: min(560px, 90vw);
+  max-height: 86vh;
+  background: var(--surface);
+  border: 1px solid var(--hair3);
+  border-top: 2px solid var(--primary);
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+  display: flex; flex-direction: column;
+}
+.modal.wide { width: min(720px, 92vw); }
+.modal-head {
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1px solid var(--hair);
+  display: grid; grid-template-columns: 1fr auto;
+  align-items: start; gap: var(--s-4);
+}
+.modal-head .eyebrow { color: var(--primary); margin-bottom: 4px; }
+.modal-head h3 {
+  font-family: var(--cond); font-weight: 700; font-size: 22px;
+  text-transform: uppercase; letter-spacing: 0.005em; color: var(--txt-hi); line-height: 1.1;
+}
+.modal-head .close {
+  width: 28px; height: 28px;
+  background: transparent; border: 1px solid var(--hair2); color: var(--txt-mid);
+  cursor: pointer; display: grid; place-items: center;
+}
+.modal-head .close:hover { color: var(--txt-hi); border-color: var(--hair3); background: var(--surface2); }
+.modal-head .close svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+.modal-body {
+  padding: var(--s-6); font-family: var(--sans); font-size: 13px; color: var(--txt);
+  line-height: 1.55; display: flex; flex-direction: column; gap: var(--s-4);
+  overflow-y: auto;
+}
+.modal-foot {
+  padding: var(--s-4) var(--s-6);
+  border-top: 1px solid var(--hair);
+  background: var(--canvas);
+  display: flex; justify-content: flex-end; align-items: center; gap: var(--s-3);
+}
+
+/* ── Eyebrow utility ── */
+.section-eyebrow {
+  font-family: var(--cond);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--txt-mid);
+}
+
+/* ── Toggle switch ── */
+.toggle {
+  display: inline-flex; align-items: center; gap: var(--s-3);
+  cursor: pointer; user-select: none;
+}
+.toggle .track {
+  width: 38px; height: 20px;
+  background: var(--surface3);
+  border: 1px solid var(--hair3);
+  position: relative;
+  transition: background 80ms;
+}
+.toggle .knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  background: var(--txt-mid);
+  transition: left 120ms ease, background 80ms;
+}
+.toggle.on .track { background: var(--primary-bg); border-color: var(--primary); }
+.toggle.on .knob { left: 20px; background: var(--primary); }
+.toggle .lbl { font-size: 13px; color: var(--txt); }
+
+/* color swatch */
+.swatch {
+  width: 16px; height: 16px;
+  border: 1px solid rgba(255,255,255,0.15);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* camera badge (colored) */
+.cam-badge {
+  display: inline-grid; place-items: center;
+  min-width: 24px; height: 22px; padding: 0 5px;
+  font-family: var(--mono);
+  font-size: 12px; font-weight: 700; letter-spacing: -0.04em;
+  color: #06060a;
+}
