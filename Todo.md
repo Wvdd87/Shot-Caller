@@ -10,3 +10,18 @@
 
 ✅ #4 In the shot modal, when using vocabulary buttons it should always add a space after the inserted word
    DONE — vocabulary chips (and the `/` autocomplete) now insert the term followed by a trailing space, caret placed after it.
+
+
+#5 the cursor when selecting text in cue mode should be a I-beam. Chpter's should be highlighted as grey in the cue mode.
+
+#6A Text selection and dragging is not smooth. Especially when changing the selected text for a cue. The user needs a flawless smooth text selection experience. Also when changing the text for a certain cue
+
+#6B Text can only belong to 1 cue. never multiple.
+
+#7 rich text edits must show up in the cue list on the right and also in the live view
+
+#8 Make it possible to batch select cue's and chapters to delete them in the cue list
+
+#9 clicking on a cue should show it's position in the cue mode text and highlight it. Opening the cue detailed side panel on the right should be done with a edit button that appears when hovering over a cue in the cue list.
+
+#10 design all modals in the app so they are not the browser native modals. eg the delete cue modal. Follow UI kit rules
