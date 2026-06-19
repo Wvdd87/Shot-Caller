@@ -30,6 +30,35 @@ async function dragInPara(paraIdx, s, e) {
   await page.waitForTimeout(400)
 }
 
+// Single click at a character within a paragraph (no drag) — used to select a cue.
+async function clickInPara(paraIdx, off) {
+  const pt = await page.evaluate(([pi,off])=>{
+    const ps=document.querySelectorAll('.sv-doc p'); const tn=document.createTreeWalker(ps[pi],NodeFilter.SHOW_TEXT).nextNode()
+    const r=document.createRange();r.setStart(tn,Math.min(off,tn.length-1));r.setEnd(tn,Math.min(off+1,tn.length));const b=r.getClientRects()[0]
+    return {x:b.left+b.width/2, y:b.top+b.height/2}
+  }, [paraIdx,off])
+  await page.mouse.click(pt.x, pt.y)
+  await page.waitForTimeout(200)
+}
+
+// Drag-select an exact phrase found in the rendered script (real mouse path),
+// used to prove the character mapping is exact even deep in long wrapped lines.
+async function dragPhrase(phrase) {
+  const c = await page.evaluate((phrase)=>{
+    const p=[...document.querySelectorAll('.sv-doc p')].find(el=>el.textContent.includes(phrase))
+    const tn=document.createTreeWalker(p,NodeFilter.SHOW_TEXT).nextNode()
+    const i=tn.textContent.indexOf(phrase)
+    const r1=document.createRange();r1.setStart(tn,i);r1.setEnd(tn,i+1)
+    const r2=document.createRange();r2.setStart(tn,i+phrase.length-1);r2.setEnd(tn,i+phrase.length)
+    const a=r1.getClientRects()[0]; const rcs=r2.getClientRects(); const bb=rcs[rcs.length-1]
+    return {ax:a.left+1,ay:a.top+a.height/2,bx:bb.right-1,by:bb.top+bb.height/2}
+  }, phrase)
+  await page.mouse.move(c.ax,c.ay); await page.mouse.down()
+  await page.mouse.move((c.ax+c.bx)/2,(c.ay+c.by)/2,{steps:6})
+  await page.mouse.move(c.bx,c.by,{steps:6}); await page.mouse.up()
+  await page.waitForTimeout(300)
+}
+
 // ════════════ A. CORRUPT RECOVERY ════════════
 await page.goto(URL, { waitUntil:'domcontentloaded' })
 await page.evaluate(() => {
@@ -140,12 +169,26 @@ const rings = await page.evaluate(()=>[...document.querySelectorAll('.detail-pan
 ok('Detail panel rings exactly ONE camera', rings===1, `rings=${rings}`)
 await page.locator('.detail-panel .close').click(); await page.waitForTimeout(200)
 
-// ── DRAG HANDLE RESIZE ──
+// ── #6A: CLICK A CUE TO SELECT IT (handles appear, detail panel stays closed) ──
+await clickInPara(1, 2) // click inside "Blow, winds" cue
+ok('#6A Click cue → handles appear', await page.locator('.cue-handle').count()===2, `handles=${await page.locator('.cue-handle').count()}`)
+ok('#6A Click cue does NOT open detail panel', await page.locator('.detail-panel').count()===0)
+ok('#6A Clicked cue is highlighted', await page.locator('.cue-rect.sel').count()>=1)
+
+// ── #6A: DRAG HANDLE RESIZE (on the selected cue) ──
 const beforeEnd = await page.evaluate(()=>{const i=JSON.parse(localStorage.getItem('cueflow_index'));const p=JSON.parse(localStorage.getItem('cueflow_project_'+i[0].id));return p.scenes[0].shots[0].endIndex})
 const hb = await page.locator('.cue-handle.end').first().boundingBox()
 if (hb){ await page.mouse.move(hb.x+hb.width/2,hb.y+hb.height/2); await page.mouse.down(); await page.mouse.move(hb.x+30,hb.y+hb.height/2,{steps:5}); await page.mouse.move(hb.x+70,hb.y+hb.height/2,{steps:5}); await page.mouse.up(); await page.waitForTimeout(500) }
 const afterEnd = await page.evaluate(()=>{const i=JSON.parse(localStorage.getItem('cueflow_index'));const p=JSON.parse(localStorage.getItem('cueflow_project_'+i[0].id));return p.scenes[0].shots[0].endIndex})
-ok('Drag handle resizes cue', afterEnd!==beforeEnd, `${beforeEnd}->${afterEnd}`)
+ok('#6A Drag handle resizes cue', afterEnd!==beforeEnd, `${beforeEnd}->${afterEnd}`)
+
+// ── #6B: SELECTION OVERLAPPING AN EXISTING CUE IS BLOCKED ──
+await clickInPara(0, 1) // click "LEAR" (unassigned) to deselect → handles disappear
+const shotsBeforeOverlap = await page.locator('.shot-row').count()
+await dragInPara(1, 1, 10) // inside the existing "Blow, winds" cue (clear of its handles)
+ok('#6B Overlapping selection is blocked (no popover)', await page.locator('.assign-pop').count()===0)
+ok('#6B Overlapping selection shows an error', await page.locator('.sv-error').count()===1)
+ok('#6B Overlapping selection creates no new shot', await page.locator('.shot-row').count()===shotsBeforeOverlap)
 
 // ── filters / search / export ──
 await page.locator('.cam-filter').nth(1).click(); await page.waitForTimeout(150)
@@ -179,6 +222,27 @@ const inView = await page.evaluate(()=>{const el=document.querySelector('.assign
 ok('#2 Popover fully visible for bottom selection', inView && inView.fits, inView?`top=${Math.round(inView.top)} bottom=${Math.round(inView.bottom)} vh=${inView.vh}`:'no popover')
 await SHOT(page,'11-popover-lowselection')
 await page.keyboard.press('Escape')
+
+// ════════════ #6: EXACT CHARACTER MAPPING (deep in a long wrapped line) ════════════
+// This is the regression that earlier `.includes()` checks missed: a phrase deep
+// in a long line must map to EXACTLY the selected characters (no space-drift).
+await page.evaluate(()=>localStorage.clear())
+await page.goto(URL,{waitUntil:'networkidle'}); await page.waitForTimeout(400)
+await page.fill('.welcome input','Exact'); await page.click('text=Create Project'); await page.waitForTimeout(500)
+await page.click('.rail-btn:has-text("Import")'); await page.waitForTimeout(150)
+await page.click('button:has-text("Import Script")'); await page.waitForTimeout(150)
+await page.fill('.modal textarea','Everyone turns to see who said that, reveal none other than Edward Bloom. The crowd parts to reveal him standing tall in the doorway while the storm rages outside tonight.')
+await page.click('text=Use pasted text'); await page.waitForTimeout(150)
+await page.click('.modal button:has-text("Continue")'); await page.waitForTimeout(150)
+await page.click('.modal button:has-text("Import Script")'); await page.waitForTimeout(450)
+await page.locator('.sidebar-close').click().catch(()=>{}); await page.waitForTimeout(300)
+const phrase='Edward Bloom. The crowd parts to'
+await dragPhrase(phrase)
+const exSel=(await page.locator('.assign-selected').textContent().catch(()=>'')).replace(/[“”]/g,'').replace(/\s+/g,' ').trim()
+ok('#6 Deep-line selection maps to EXACT characters', exSel===phrase, `got "${exSel}"`)
+await page.locator('.assign-pop .cam-pick').nth(0).click(); await page.fill('.shot-type-input input','MCU'); await page.click('.assign-pop button:has-text("Create Shot")'); await page.waitForTimeout(650)
+const exSlice=await page.evaluate(()=>{const i=JSON.parse(localStorage.getItem('cueflow_index'));const s=JSON.parse(localStorage.getItem('cueflow_project_'+i[0].id)).scenes[0];const sh=s.shots[0];return s.rawScript.plainText.slice(sh.startIndex,sh.endIndex).replace(/\s+/g,' ').trim()})
+ok('#6 Stored cue slice matches selection exactly', exSlice===phrase, `got "${exSlice}"`)
 
 // ════════════ C. LIVE MODE (quick regression) ════════════
 await page.evaluate(()=>localStorage.clear())

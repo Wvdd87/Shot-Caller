@@ -249,11 +249,25 @@ export function reducer(state: AppState, action: Action): AppState {
       return withProject(
         state,
         patchScene(project, action.sceneId, (s) => {
+          const max = s.rawScript.plainText.length
+          const target = s.shots.find((sh) => sh.id === action.shotId)
+          if (!target) return s
+          const others = s.shots.filter((sh) => sh.id !== action.shotId)
+          // Clamp to neighbouring cues so a cue can never overlap another (#6B):
+          // the nearest cue ending before this one bounds the start; the nearest
+          // cue starting after this one bounds the end.
+          const leftBound = others
+            .filter((o) => o.endIndex <= target.startIndex)
+            .reduce((m, o) => Math.max(m, o.endIndex), 0)
+          const rightBound = others
+            .filter((o) => o.startIndex >= target.endIndex)
+            .reduce((m, o) => Math.min(m, o.startIndex), max)
           const shots = s.shots.map((sh) => {
             if (sh.id !== action.shotId) return sh
-            let start = action.startIndex ?? sh.startIndex
-            let end = action.endIndex ?? sh.endIndex
-            if (end <= start) end = start + 1 // enforce min 1 char
+            let start = Math.max(leftBound, action.startIndex ?? sh.startIndex)
+            let end = Math.min(rightBound, action.endIndex ?? sh.endIndex)
+            if (end <= start) end = Math.min(rightBound, start + 1)
+            if (start >= end) start = Math.max(leftBound, end - 1)
             return { ...sh, startIndex: start, endIndex: end }
           })
           return { ...s, shots: renumber(shots) }

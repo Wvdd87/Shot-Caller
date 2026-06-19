@@ -44,11 +44,18 @@ function endOfBlock(block: HTMLElement): CaretPos {
   return { node: block, offset: block.childNodes.length }
 }
 
+// Per-text-node lookup for the inverse mapping: for each emitted character we
+// record its DOM offset and its TRUE global plainText index (so collapsed
+// spaces between words don't throw the arithmetic off).
+interface NodeEntry {
+  offs: number[] // DOM character offsets, ascending
+  globals: number[] // matching global plainText indices
+}
+
 interface Computed {
   plainText: string
   carets: CaretPos[] // length === plainText.length + 1
-  // per-text-node emitted-char DOM offsets, for fast inverse lookup
-  nodeMap: Map<Text, { firstGlobal: number; offsets: number[] }>
+  nodeMap: Map<Text, NodeEntry>
 }
 
 function compute(container: HTMLElement): Computed {
@@ -56,14 +63,31 @@ function compute(container: HTMLElement): Computed {
   const blocks = leafBlocks(container)
   let plainText = ''
   const carets: CaretPos[] = []
-  const nodeMap = new Map<Text, { firstGlobal: number; offsets: number[] }>()
+  const nodeMap = new Map<Text, NodeEntry>()
+
+  // Record an emitted character: push its caret-before position and remember
+  // the DOM offset → global index mapping for the inverse lookup.
+  const emit = (node: Node, offset: number, ch: string) => {
+    const global = carets.length // caret index before this char === its global index
+    carets.push({ node, offset })
+    plainText += ch
+    if (node.nodeType === Node.TEXT_NODE) {
+      let entry = nodeMap.get(node as Text)
+      if (!entry) {
+        entry = { offs: [], globals: [] }
+        nodeMap.set(node as Text, entry)
+      }
+      entry.offs.push(offset)
+      entry.globals.push(global)
+    }
+  }
 
   let prevBlock: HTMLElement | null = null
   for (let bi = 0; bi < blocks.length; bi++) {
     const block = blocks[bi]
     if (bi > 0 && prevBlock) {
-      carets.push(endOfBlock(prevBlock)) // caret before the joining '\n'
-      plainText += '\n'
+      const pos = endOfBlock(prevBlock) // caret before the joining '\n'
+      emit(pos.node, pos.offset, '\n')
     }
     const walker = ownerDoc.createTreeWalker(block, NodeFilter.SHOW_TEXT)
     let blockEmitted = false
@@ -78,18 +102,10 @@ function compute(container: HTMLElement): Computed {
           if (blockEmitted && !pendingSpace) pendingSpace = { node: text, offset: off }
         } else {
           if (pendingSpace) {
-            carets.push(pendingSpace)
-            plainText += ' '
+            emit(pendingSpace.node, pendingSpace.offset, ' ')
             pendingSpace = null
           }
-          let entry = nodeMap.get(text)
-          if (!entry) {
-            entry = { firstGlobal: carets.length, offsets: [] }
-            nodeMap.set(text, entry)
-          }
-          entry.offsets.push(off)
-          carets.push({ node: text, offset: off })
-          plainText += ch
+          emit(text, off, ch)
           blockEmitted = true
         }
       }
@@ -128,37 +144,46 @@ export function buildTextModel(container: HTMLElement): TextModel {
     }
   }
 
+  // Document-order binary search over carets — always correct for any DOM
+  // position (used when the point isn't a known text node, e.g. element/padding
+  // hits during a fast handle drag).
+  const indexByDocOrder = (node: Node, offset: number): number => {
+    let lo = 0
+    let hi = carets.length - 1
+    let ans = 0
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      const c = carets[mid]
+      if (comparePoints(c.node, c.offset, node, offset) <= 0) {
+        ans = mid
+        lo = mid + 1
+      } else hi = mid - 1
+    }
+    return ans
+  }
+
   const indexFromDom = (node: Node, offset: number): number => {
-    // Direct hit on a known text node → exact char-level mapping.
     if (node.nodeType === Node.TEXT_NODE) {
       const entry = nodeMap.get(node as Text)
       if (entry) {
-        const { firstGlobal, offsets } = entry
-        // largest emitted offset <= the click offset
+        const { offs, globals } = entry
+        // largest emitted DOM offset <= the click offset
         let lo = 0
-        let hi = offsets.length - 1
+        let hi = offs.length - 1
         let found = -1
         while (lo <= hi) {
           const mid = (lo + hi) >> 1
-          if (offsets[mid] <= offset) {
+          if (offs[mid] <= offset) {
             found = mid
             lo = mid + 1
           } else hi = mid - 1
         }
-        if (found === -1) return firstGlobal
-        // caret before that char if click is at its start, else after it
-        return offset > offsets[found] ? firstGlobal + found + 1 : firstGlobal + found
+        if (found === -1) return globals[0] ?? indexByDocOrder(node, offset)
+        // caret before that char if the click sits at its start, else after it
+        return offset > offs[found] ? globals[found] + 1 : globals[found]
       }
     }
-    // Fall back: find the nearest caret by document position comparison.
-    let best = 0
-    for (let i = 0; i < carets.length; i++) {
-      const c = carets[i]
-      const cmp = comparePoints(c.node, c.offset, node, offset)
-      if (cmp <= 0) best = i
-      else break
-    }
-    return best
+    return indexByDocOrder(node, offset)
   }
 
   return { plainText, caretAt, rangeFor, indexFromDom }
@@ -166,7 +191,7 @@ export function buildTextModel(container: HTMLElement): TextModel {
 
 // Compare two DOM points: -1 if a<b, 0 if equal, 1 if a>b (document order).
 function comparePoints(an: Node, ao: number, bn: Node, bo: number): number {
-  if (an === bn) return ao - bo === 0 ? 0 : ao < bo ? -1 : 1
+  if (an === bn) return ao === bo ? 0 : ao < bo ? -1 : 1
   const r = document.createRange()
   try {
     r.setStart(an, ao)

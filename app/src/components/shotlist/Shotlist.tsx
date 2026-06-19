@@ -14,9 +14,11 @@ interface Props {
   cameras: Camera[]
   selectedShotId: string | null
   onSelectShot: (id: string | null) => void
+  detailShotId: string | null
+  onOpenDetail: (id: string | null) => void
 }
 
-export function Shotlist({ scene, cameras, selectedShotId, onSelectShot }: Props) {
+export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailShotId, onOpenDetail }: Props) {
   const { project, dispatch } = useApp()
   const [filterCam, setFilterCam] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -24,7 +26,7 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot }: Props
   const [editingChapter, setEditingChapter] = useState<string | null>(null)
 
   const rows = useMemo(() => buildRows(scene), [scene])
-  const detailShot = scene.shots.find((s) => s.id === selectedShotId) || null
+  const detailShot = scene.shots.find((s) => s.id === detailShotId) || null
   const text = scene.rawScript.plainText
 
   const visibleRows = rows.filter((row) => {
@@ -145,7 +147,10 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot }: Props
               key={s.id}
               id={`shot-${s.id}`}
               className={`shot-row ${selectedShotId === s.id ? 'sel' : ''}`}
-              onClick={() => onSelectShot(s.id)}
+              onClick={() => {
+                onSelectShot(s.id)
+                onOpenDetail(s.id)
+              }}
             >
               <div className="sr-num mono">{pad3(s.number)}</div>
               <div className="sr-action">{s.prepNote}</div>
@@ -165,7 +170,7 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot }: Props
       </div>
 
       {detailShot && (
-        <ShotDetailPanel scene={scene} shot={detailShot} cameras={cameras} onClose={() => onSelectShot(null)} />
+        <ShotDetailPanel scene={scene} shot={detailShot} cameras={cameras} onClose={() => onOpenDetail(null)} />
       )}
     </div>
   )

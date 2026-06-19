@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useApp } from '../../state/context'
 import type { Camera, Scene } from '../../types'
 import { contrastText } from '../../lib/palette'
-import { normaliseEditableHtml, overlapsExisting, snapSelection } from '../../lib/script'
+import { normaliseEditableHtml, snapSelection } from '../../lib/script'
 import { buildTextModel, type TextModel } from '../../lib/textmodel'
 import { domCaretFromPoint, rectsFromRange, type Rect } from '../../lib/caret'
 import { pad3 } from '../../lib/derive'
@@ -69,8 +69,13 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
   const [shotRects, setShotRects] = useState<ShotRects[]>([])
   const [chapterRects, setChapterRects] = useState<ChapterRects[]>([])
   const [pending, setPending] = useState<PendingSel | null>(null)
-  const [pendingRects, setPendingRects] = useState<Rect[]>([])
   const [error, setError] = useState<string | null>(null)
+  // The cue currently under the cursor, and the cue being resized — either
+  // makes its drag handles visible, so you can resize a cue on hover without
+  // first selecting it (and without selecting it in the cue list).
+  const [hoveredCueId, setHoveredCueId] = useState<string | null>(null)
+  const [resizingCueId, setResizingCueId] = useState<string | null>(null)
+  const hoverRaf = useRef<number | undefined>(undefined)
 
   const camById = useCallback((id: string) => cameras.find((c) => c.id === id), [cameras])
 
@@ -163,62 +168,102 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
     return model.indexFromDom(caret.node, caret.offset)
   }
 
-  // ── selection drag (cue mode) ──
-  const dragRef = useRef<{ anchor: number } | null>(null)
-
-  const onDocMouseDown = (e: React.MouseEvent) => {
-    if (mode !== 'CUE' || pending) return
-    if ((e.target as HTMLElement).closest('.cue-handle')) return // handle drag wins
-    if ((e.target as HTMLElement).closest('.cue-rect')) return // selecting a shot
-    const model = modelRef.current
-    const scroll = scrollRef.current
-    if (!model || !scroll) return
-    e.preventDefault() // suppress native selection in the read-only doc
-    const anchor = pointToIndex(e.clientX, e.clientY)
-    if (anchor == null) return
-    dragRef.current = { anchor }
-    setError(null)
-
-    const onMove = (ev: MouseEvent) => {
-      const cur = pointToIndex(ev.clientX, ev.clientY)
-      if (cur == null) return
-      const a = dragRef.current!.anchor
-      const [s, en] = [Math.min(a, cur), Math.max(a, cur)]
-      setPendingRects(rectsFromRange(model.rangeFor(s, en), scroll))
+  // Track the cue under the cursor so its resize handles appear on hover
+  // (throttled to one update per animation frame). A short grace period before
+  // hiding keeps the handles reachable across small gaps — e.g. the diagonal
+  // move to a handle at the end of a wrapped, multi-line cue.
+  const hideHoverTimer = useRef<number | undefined>(undefined)
+  const keepHover = (id: string) => {
+    if (hideHoverTimer.current) {
+      window.clearTimeout(hideHoverTimer.current)
+      hideHoverTimer.current = undefined
     }
-    const onUp = (ev: MouseEvent) => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      const cur = pointToIndex(ev.clientX, ev.clientY)
-      const a = dragRef.current!.anchor
-      dragRef.current = null
-      if (cur == null) {
-        setPendingRects([])
-        return
+    setHoveredCueId((prev) => (prev === id ? prev : id))
+  }
+  const onDocMouseMove = (e: React.MouseEvent) => {
+    if (mode !== 'CUE' || resizingCueId || pending) return
+    if (hoverRaf.current) return
+    const x = e.clientX
+    const y = e.clientY
+    hoverRaf.current = requestAnimationFrame(() => {
+      hoverRaf.current = undefined
+      const idx = pointToIndex(x, y)
+      const hit = idx == null ? null : scene.shots.find((s) => idx >= s.startIndex && idx < s.endIndex)
+      if (hit) {
+        keepHover(hit.id)
+      } else if (!hideHoverTimer.current) {
+        hideHoverTimer.current = window.setTimeout(() => {
+          hideHoverTimer.current = undefined
+          setHoveredCueId(null)
+        }, 180)
       }
-      let [s, en] = [Math.min(a, cur), Math.max(a, cur)]
-      ;[s, en] = snapSelection(text, s, en)
-      if (en - s < 1) {
-        setPendingRects([])
-        return
-      }
-      if (overlapsExisting(scene.shots, s, en)) {
-        setError('Selection overlaps an existing shot.')
-        setPendingRects([])
-        return
-      }
-      setPending({ start: s, end: en, x: ev.clientX, y: ev.clientY })
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    })
   }
 
-  // ── drag handles (resize a shot boundary) ──
+  // Clean up the hover throttling rAF / grace timer on unmount.
+  useEffect(
+    () => () => {
+      if (hoverRaf.current) cancelAnimationFrame(hoverRaf.current)
+      if (hideHoverTimer.current) window.clearTimeout(hideHoverTimer.current)
+    },
+    [],
+  )
+
+  // ── selection (cue mode) — NATIVE browser selection, read on mouse up ──
+  // Using the browser's own selection (instead of custom mouse tracking) gives
+  // a flawless, smooth experience: word/line wrapping, shift-click, double-click
+  // word select, etc. all work for free. The cue overlay is click-through so it
+  // never blocks selecting any part of the text.
+  const clearSelection = () => window.getSelection()?.removeAllRanges()
+
+  const onDocMouseUp = (e: React.MouseEvent) => {
+    if (mode !== 'CUE' || pending) return
+    if ((e.target as HTMLElement).closest('.cue-handle')) return // a handle drag owns this gesture
+    const model = modelRef.current
+    const doc = docRef.current
+    if (!model || !doc) return
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+    const range = sel.getRangeAt(0)
+    if (!doc.contains(range.startContainer) || !doc.contains(range.endContainer)) return
+
+    let start = model.indexFromDom(range.startContainer, range.startOffset)
+    let end = model.indexFromDom(range.endContainer, range.endOffset)
+    if (start > end) [start, end] = [end, start]
+    ;[start, end] = snapSelection(text, start, end)
+
+    // Collapsed click (or selection that snaps to nothing) → select the cue
+    // under the caret, or clear selection if the text is unassigned.
+    if (sel.isCollapsed || end - start < 1) {
+      const idx = model.indexFromDom(range.startContainer, range.startOffset)
+      const hit = scene.shots.find((sh) => idx >= sh.startIndex && idx < sh.endIndex)
+      onSelectShot(hit ? hit.id : null)
+      setError(null)
+      return
+    }
+
+    // A real selection → create a cue, unless it overlaps an existing one (#6B:
+    // a character can belong to only one cue).
+    const overlap = scene.shots.filter((sh) => start < sh.endIndex && end > sh.startIndex)
+    if (overlap.length) {
+      const n = [...overlap].sort((a, b) => a.number - b.number)[0].number
+      setError(
+        `That text already belongs to cue ${pad3(n)} — pick an unassigned passage, or drag that cue's handles to resize it.`,
+      )
+      clearSelection()
+      return
+    }
+    setError(null)
+    setPending({ start, end, x: e.clientX, y: e.clientY })
+  }
+
+  // ── drag handles (resize a shot boundary) — works on hover, no selection ──
   const startHandleDrag = (e: React.MouseEvent, shotId: string, which: 'start' | 'end') => {
     e.stopPropagation()
     e.preventDefault()
     const shot = scene.shots.find((s) => s.id === shotId)
     if (!shot) return
+    setResizingCueId(shotId) // keep handles visible for the whole drag
 
     const onMove = (ev: MouseEvent) => {
       const off = pointToIndex(ev.clientX, ev.clientY)
@@ -227,11 +272,13 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
       let end = shot.endIndex
       if (which === 'start') start = Math.min(off, end - 1)
       else end = Math.max(off, start + 1)
+      // Reducer clamps to neighbours so cues never overlap (#6B).
       dispatch({ type: 'MOVE_SHOT_BOUNDARY', sceneId: scene.id, shotId, startIndex: start, endIndex: end })
     }
     const onUp = () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      setResizingCueId(null)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -259,7 +306,7 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
       })
     }
     setPending(null)
-    setPendingRects([])
+    clearSelection()
   }
 
   // ── TEXT mode commit (shared element is the contenteditable) ──
@@ -381,37 +428,36 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
                   </div>
                 )
               })}
-              {shotRects.map((sr) =>
-                sr.rects.map((r, i) => (
+              {/* Cue highlights are purely visual / click-through, so they never
+                  block native text selection over the script. */}
+              {shotRects.map((sr) => {
+                const active = selectedShotId === sr.shotId
+                const hot = hoveredCueId === sr.shotId || resizingCueId === sr.shotId
+                return sr.rects.map((r, i) => (
                   <div
                     key={`${sr.shotId}-${i}`}
-                    className={`cue-rect ${selectedShotId === sr.shotId ? 'sel' : ''}`}
+                    className={`cue-rect ${active ? 'sel' : ''} ${hot ? 'hover' : ''}`}
                     style={{
                       left: r.left,
                       top: r.top,
                       width: r.width,
                       height: r.height,
-                      background: hexA(sr.cameraColor, 0.15),
+                      background: hexA(sr.cameraColor, active || hot ? 0.28 : 0.15),
                       boxShadow: `inset 0 -2px 0 ${sr.cameraColor}`,
                     }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      onSelectShot(sr.shotId)
-                    }}
                   />
-                )),
-              )}
-              {pendingRects.map((r, i) => (
-                <div
-                  key={`pending-${i}`}
-                  className="cue-rect pending"
-                  style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
-                />
-              ))}
+                ))
+              })}
               {shotRects.map((sr) => {
                 if (!sr.rects.length) return null
                 const first = sr.rects[0]
                 const last = sr.rects[sr.rects.length - 1]
+                // Handles show on hover or while resizing — no need to select the
+                // cue first, and they never select it in the cue list.
+                const showHandles =
+                  selectedShotId === sr.shotId ||
+                  hoveredCueId === sr.shotId ||
+                  resizingCueId === sr.shotId
                 return (
                   <div key={`meta-${sr.shotId}`}>
                     <div className="cue-label" style={{ left: first.left, top: first.top - 15 }}>
@@ -423,18 +469,28 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
                         {sr.camNumber}
                       </span>
                     </div>
-                    <div
-                      className="cue-handle start"
-                      style={{ left: first.left - 4, top: first.top, height: first.height, background: sr.cameraColor }}
-                      onMouseDown={(e) => startHandleDrag(e, sr.shotId, 'start')}
-                      title="Drag to resize start"
-                    />
-                    <div
-                      className="cue-handle end"
-                      style={{ left: last.left + last.width, top: last.top, height: last.height, background: sr.cameraColor }}
-                      onMouseDown={(e) => startHandleDrag(e, sr.shotId, 'end')}
-                      title="Drag to resize end"
-                    />
+                    {showHandles && (
+                      <>
+                        <div
+                          className="cue-handle start"
+                          style={{ left: first.left, top: first.top, height: first.height }}
+                          onMouseEnter={() => keepHover(sr.shotId)}
+                          onMouseDown={(e) => startHandleDrag(e, sr.shotId, 'start')}
+                          title="Drag to resize start"
+                        >
+                          <span className="cue-handle-bar" style={{ background: sr.cameraColor }} />
+                        </div>
+                        <div
+                          className="cue-handle end"
+                          style={{ left: last.left + last.width, top: last.top, height: last.height }}
+                          onMouseEnter={() => keepHover(sr.shotId)}
+                          onMouseDown={(e) => startHandleDrag(e, sr.shotId, 'end')}
+                          title="Drag to resize end"
+                        >
+                          <span className="cue-handle-bar" style={{ background: sr.cameraColor }} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )
               })}
@@ -450,7 +506,17 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
             contentEditable={mode === 'TEXT'}
             suppressContentEditableWarning
             spellCheck={false}
-            onMouseDown={onDocMouseDown}
+            onMouseUp={onDocMouseUp}
+            onMouseMove={mode === 'CUE' ? onDocMouseMove : undefined}
+            onMouseLeave={() => {
+              // Schedule (don't force) a hide — moving onto a handle fires this
+              // leave, but the handle's onMouseEnter cancels the timer.
+              if (resizingCueId || hideHoverTimer.current) return
+              hideHoverTimer.current = window.setTimeout(() => {
+                hideHoverTimer.current = undefined
+                setHoveredCueId(null)
+              }, 180)
+            }}
             onBlur={mode === 'TEXT' ? commitText : undefined}
           />
 
@@ -458,7 +524,7 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
             <div className="sv-empty">
               <div className="sv-empty-title">NO SCRIPT YET</div>
               <div className="sv-empty-sub">
-                Use Import → Import Script to bring in a script, then drag to assign shots.
+                Use Import → Import Script to bring in a script, then select text to assign shots.
               </div>
             </div>
           )}
@@ -467,7 +533,7 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
 
       <div className="sv-status">
         {mode === 'CUE'
-          ? 'CUE MODE — drag to assign shots · drag handles to resize · click a shot to select'
+          ? 'CUE MODE — select text to assign a shot · hover a cue and drag its handles to resize'
           : 'TEXT MODE — edit script text · B / I / U formatting · changes autosave'}
       </div>
 
@@ -483,7 +549,7 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
           onCreate={onCreateShot}
           onCancel={() => {
             setPending(null)
-            setPendingRects([])
+            clearSelection()
           }}
         />
       )}

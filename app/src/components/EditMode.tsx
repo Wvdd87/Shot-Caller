@@ -11,7 +11,11 @@ export function EditMode({ onGoLive }: { onGoLive: () => void }) {
   const { project, activeScene } = useApp()
   const [panel, setPanel] = useState<PanelId | null>('PROJECT')
   const [scriptMode, setScriptMode] = useState<ScriptMode>('CUE')
+  // selectedShotId = the highlighted/active cue (script + list). detailShotId =
+  // which shot's detail panel is open. Selecting a cue in the script highlights
+  // it WITHOUT opening the heavy detail overlay.
   const [selectedShotId, setSelectedShotId] = useState<string | null>(null)
+  const [detailShotId, setDetailShotId] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
 
   if (!project) return null
@@ -51,6 +55,8 @@ export function EditMode({ onGoLive }: { onGoLive: () => void }) {
                   cameras={project.settings.cameras}
                   selectedShotId={selectedShotId}
                   onSelectShot={setSelectedShotId}
+                  detailShotId={detailShotId}
+                  onOpenDetail={setDetailShotId}
                 />
               </section>
             </>

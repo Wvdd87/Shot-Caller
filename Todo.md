@@ -15,9 +15,12 @@
 ✅ #5 the cursor when selecting text in cue mode should be a I-beam. Chpter's should be highlighted as grey in the cue mode.
    DONE — Cue Mode now uses an I-beam (text) cursor. Chapters carry their selected text range and render as a grey heading highlight (with a ▶ label) right in the cue-mode script. Verified: cursor computes to `text`, grey highlight rgba(124,126,138,0.22) drawn, full suite 36/36 green.
 
-#6A Text selection and dragging is not smooth. I can't seem to select certain parts of the text. Especially when changing the selected text for a cue. The user needs a flawless smooth text selection experience. Also when changing the text for a certain cue
-
-#6B Text should only be able to belong to 1 cue. never multiple.
+✅ #6A Text selection and dragging is not smooth. I can't seem to select certain parts of the text. Especially when changing the selected text for a cue. The user needs a flawless smooth text selection experience. Also when changing the text for a certain cue
+   DONE — Cue Mode now uses the browser's NATIVE text selection (read on mouse-up) instead of custom mouse tracking, so selection is buttery smooth (word wrap, shift-click, double-click word all work). Cue highlights are click-through (pointer-events:none) so they never block selecting any part of the text — including the gaps right next to existing cues.
+   ROOT-CAUSE FIX (reported still-broken): the DOM→character index mapping in textmodel.ts drifted by the number of collapsed spaces before the cursor, so a phrase deep in a long line came back shifted/truncated ("Edward Bloom. The crowd parts to" → "other than Edward Bloom. Th"), and cue ranges looked like whole blocks. Now each emitted character stores its TRUE global plainText index (spaces included) and element/padding hits fall back to a document-order binary search — so selection + resize are character-exact and no longer jumpy.
+   Handles now appear on HOVER (no need to select first) with a short grace period + handle keep-alive so they don't flicker on multi-line cues, and dragging a handle never selects the cue in the cue list. My earlier tests missed this because they selected near the start of short lines and only checked `.includes()`; the suite now drag-selects an exact phrase deep in a long wrapped line and asserts the selected text + stored slice match character-for-character.
+✅ #6B Text should only be able to belong to 1 cue. never multiple.
+   DONE — overlapping selections are rejected on create (clear inline message naming the conflicting cue), and handle-resize is clamped to the neighbouring cues in the reducer so a boundary can touch but never cross into another cue. Verified: A.end == B.start, no character ever in two cues. Suite 42/42 + dedicated clamp/gap/double-click test 7/7, 0 JS errors.
 
 #7 rich text edits must show up in the cue list on the right and also in the live view
 
@@ -25,4 +28,7 @@
 
 #9 clicking on a cue should show it's position in the cue mode text and highlight it. Opening the cue detailed side panel on the right should be done with a edit button that appears when hovering over a cue in the cue list.
 
+--------
+
 #10 design all modals in the app so they are not the browser native modals. eg the delete cue modal. Follow UI kit rules
+
