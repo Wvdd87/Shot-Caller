@@ -39,7 +39,8 @@ export interface Shot {
 export interface Chapter {
   id: string
   title: string
-  scriptIndex: number // character index into rawScript.plainText
+  scriptIndex: number // character index into rawScript.plainText (start of heading)
+  endIndex?: number // end of the heading text (for the grey cue-mode highlight)
 }
 
 export interface LiveLogEntry {

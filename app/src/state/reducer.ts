@@ -47,7 +47,7 @@ export type Action =
       endIndex?: number
     }
   // chapters
-  | { type: 'CREATE_CHAPTER'; sceneId: string; title: string; scriptIndex: number }
+  | { type: 'CREATE_CHAPTER'; sceneId: string; title: string; scriptIndex: number; endIndex?: number }
   | { type: 'UPDATE_CHAPTER'; sceneId: string; chapterId: string; patch: Partial<Chapter> }
   | { type: 'DELETE_CHAPTER'; sceneId: string; chapterId: string }
   // cameras
@@ -267,7 +267,7 @@ export function reducer(state: AppState, action: Action): AppState {
           ...s,
           chapters: [
             ...s.chapters,
-            { id: uid(), title: action.title, scriptIndex: action.scriptIndex },
+            { id: uid(), title: action.title, scriptIndex: action.scriptIndex, endIndex: action.endIndex },
           ],
         })),
       )

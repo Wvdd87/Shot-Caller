@@ -252,7 +252,9 @@
 }
 .sv-doc p { margin: 0 0 0.6em; }
 .sv-doc p:last-child { margin-bottom: 0; }
-.sv-doc.cue { cursor: crosshair; user-select: none; }
+/* I-beam when hovering/selecting script text in Cue Mode; selection is handled
+   by our own drag logic, so native selection stays off. */
+.sv-doc.cue { cursor: text; user-select: none; }
 .sv-doc.text { caret-color: var(--amber); }
 .sv-empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
 .sv-empty-title { font-family: var(--cond); font-size: 16px; font-weight: 700; letter-spacing: 0.1em; color: var(--txt-low); }
@@ -261,6 +263,15 @@
 .cue-rect { position: absolute; pointer-events: auto; cursor: pointer; }
 .cue-rect.sel { outline: 1px solid var(--txt-hi); }
 .cue-rect.pending { background: var(--amber-bg); box-shadow: inset 0 -2px 0 var(--amber); pointer-events: none; }
+/* Chapters appear as grey heading highlights — not clickable, so text under
+   them can still be selected for a cue. */
+.cue-rect.chapter { background: rgba(124, 126, 138, 0.22); box-shadow: inset 0 -2px 0 var(--hair3); pointer-events: none; cursor: text; }
+.cue-chapter-label {
+  position: absolute; display: flex; align-items: center; gap: 4px; padding: 1px 5px;
+  background: var(--surface); pointer-events: none; z-index: 3;
+  font-family: var(--cond); font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--txt-mid); white-space: nowrap;
+}
 .cue-label {
   position: absolute; display: flex; align-items: center; gap: 4px; padding: 1px 3px;
   background: var(--surface); pointer-events: none; z-index: 3;

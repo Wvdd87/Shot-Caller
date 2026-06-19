@@ -28,6 +28,26 @@ interface ShotRects {
   rects: Rect[]
 }
 
+interface ChapterRects {
+  chapterId: string
+  title: string
+  rects: Rect[]
+}
+
+// The text span a chapter highlights: its stored [scriptIndex, endIndex) range,
+// falling back to the rest of the heading line for legacy chapters with no end.
+function chapterRange(
+  ch: { scriptIndex: number; endIndex?: number },
+  text: string,
+): [number, number] {
+  const s = Math.max(0, Math.min(ch.scriptIndex, text.length))
+  if (typeof ch.endIndex === 'number' && ch.endIndex > s) {
+    return [s, Math.min(ch.endIndex, text.length)]
+  }
+  const nl = text.indexOf('\n', s)
+  return [s, nl === -1 ? text.length : nl]
+}
+
 interface PendingSel {
   start: number
   end: number
@@ -47,6 +67,7 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
   const lastHtmlRef = useRef<string>('')
 
   const [shotRects, setShotRects] = useState<ShotRects[]>([])
+  const [chapterRects, setChapterRects] = useState<ChapterRects[]>([])
   const [pending, setPending] = useState<PendingSel | null>(null)
   const [pendingRects, setPendingRects] = useState<Rect[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -59,20 +80,30 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
     const scroll = scrollRef.current
     if (!model || !scroll) {
       setShotRects([])
+      setChapterRects([])
       return
     }
-    const out: ShotRects[] = scene.shots.map((s) => {
-      const cam = camById(s.cameraId)
-      return {
-        shotId: s.id,
-        cameraColor: cam?.color || '#888',
-        number: s.number,
-        camNumber: cam?.number ?? 0,
-        rects: rectsFromRange(model.rangeFor(s.startIndex, s.endIndex), scroll),
-      }
-    })
-    setShotRects(out)
-  }, [scene.shots, camById])
+    setShotRects(
+      scene.shots.map((s) => {
+        const cam = camById(s.cameraId)
+        return {
+          shotId: s.id,
+          cameraColor: cam?.color || '#888',
+          number: s.number,
+          camNumber: cam?.number ?? 0,
+          rects: rectsFromRange(model.rangeFor(s.startIndex, s.endIndex), scroll),
+        }
+      }),
+    )
+    setChapterRects(
+      scene.chapters
+        .map((c) => {
+          const [s, e] = chapterRange(c, text)
+          return { chapterId: c.id, title: c.title, rects: rectsFromRange(model.rangeFor(s, e), scroll) }
+        })
+        .filter((c) => c.rects.length),
+    )
+  }, [scene.shots, scene.chapters, text, camById])
 
   // Rebuild the index model from the live DOM (after content changes), then rects.
   const rebuildModel = useCallback(() => {
@@ -215,6 +246,7 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
         sceneId: scene.id,
         title: r.chapterTitle || text.slice(pending.start, pending.end).replace(/\n/g, ' ').trim() || 'Chapter',
         scriptIndex: pending.start,
+        endIndex: pending.end,
       })
     } else {
       dispatch({
@@ -326,6 +358,29 @@ export function ScriptViewer({ scene, cameras, mode, onModeChange, selectedShotI
         <div className="sv-cue-wrap">
           {mode === 'CUE' && (
             <div className="sv-overlay">
+              {/* Chapters render first (underneath) as grey heading highlights. */}
+              {chapterRects.map((cr) =>
+                cr.rects.map((r, i) => (
+                  <div
+                    key={`ch-${cr.chapterId}-${i}`}
+                    className="cue-rect chapter"
+                    style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
+                  />
+                )),
+              )}
+              {chapterRects.map((cr) => {
+                if (!cr.rects.length) return null
+                const first = cr.rects[0]
+                return (
+                  <div
+                    key={`chl-${cr.chapterId}`}
+                    className="cue-chapter-label"
+                    style={{ left: first.left, top: first.top - 15 }}
+                  >
+                    ▶ {cr.title.toUpperCase()}
+                  </div>
+                )
+              })}
               {shotRects.map((sr) =>
                 sr.rects.map((r, i) => (
                   <div

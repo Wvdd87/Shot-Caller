@@ -130,6 +130,7 @@ function normalizeChapter(raw: unknown): Chapter | null {
     id: typeof c.id === 'string' ? c.id : uid(),
     title: typeof c.title === 'string' ? c.title : 'Chapter',
     scriptIndex: typeof c.scriptIndex === 'number' ? c.scriptIndex : -1,
+    endIndex: typeof c.endIndex === 'number' ? c.endIndex : undefined,
   }
 }
 

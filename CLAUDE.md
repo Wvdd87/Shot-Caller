@@ -81,3 +81,13 @@ shows/hides the cue overlay — the user must see **no change in the text**, onl
 - `border-radius: 0` everywhere (enforced in `styles/tokens.css`); hairline 1px borders; no shadows
   as depth. Fonts: IBM Plex Sans (body), JetBrains Mono (numbers/mono), IBM Plex Sans Condensed
   (labels). Use the existing CSS tokens/classes — **don't introduce new colors or radii.**
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

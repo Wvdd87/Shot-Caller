@@ -12,11 +12,12 @@
    DONE — vocabulary chips (and the `/` autocomplete) now insert the term followed by a trailing space, caret placed after it.
 
 
-#5 the cursor when selecting text in cue mode should be a I-beam. Chpter's should be highlighted as grey in the cue mode.
+✅ #5 the cursor when selecting text in cue mode should be a I-beam. Chpter's should be highlighted as grey in the cue mode.
+   DONE — Cue Mode now uses an I-beam (text) cursor. Chapters carry their selected text range and render as a grey heading highlight (with a ▶ label) right in the cue-mode script. Verified: cursor computes to `text`, grey highlight rgba(124,126,138,0.22) drawn, full suite 36/36 green.
 
-#6A Text selection and dragging is not smooth. Especially when changing the selected text for a cue. The user needs a flawless smooth text selection experience. Also when changing the text for a certain cue
+#6A Text selection and dragging is not smooth. I can't seem to select certain parts of the text. Especially when changing the selected text for a cue. The user needs a flawless smooth text selection experience. Also when changing the text for a certain cue
 
-#6B Text can only belong to 1 cue. never multiple.
+#6B Text should only be able to belong to 1 cue. never multiple.
 
 #7 rich text edits must show up in the cue list on the right and also in the live view
 
