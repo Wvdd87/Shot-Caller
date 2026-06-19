@@ -6,6 +6,7 @@ app/dist-ssr/
 .DS_Store
 .vite
 .claude/
+test/
 
 # graphify
 graphify-out/
