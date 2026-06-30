@@ -31,6 +31,7 @@ export interface Shot {
   shotType: string // free text
   prepNote: string // auto-generated, editable
   prepNoteEdited: boolean
+  prepNoteStale: boolean // true when shotType changed after creation and prepNote may be outdated
   startIndex: number // character index into rawScript.plainText
   endIndex: number
   notes: string // director's private notes, not shown in live mode

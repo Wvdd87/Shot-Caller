@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import { useApp } from '../../state/context'
 import type { Camera, Scene } from '../../types'
 import { buildRows, pad3 } from '../../lib/derive'
@@ -30,9 +30,18 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [lastClicked, setLastClicked] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [goToOpen, setGoToOpen] = useState(false)
+  const [goToValue, setGoToValue] = useState('')
 
   const rows = useMemo(() => buildRows(scene), [scene])
+  const rowsRef = useRef<HTMLDivElement>(null)
   const detailShot = scene.shots.find((s) => s.id === detailShotId) || null
+
+  // Scroll the selected row into view when a cue is selected (e.g. from the script). (#9)
+  useEffect(() => {
+    if (!selectedShotId) return
+    document.getElementById(`shot-${selectedShotId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [selectedShotId])
   const text = scene.rawScript.plainText
   // Formatted (bold/italic/underline) slice of the script for each cue (#7).
   const richSlice = useMemo(() => makeRichSlicer(scene.rawScript.html), [scene.rawScript.html])
@@ -112,15 +121,13 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
     return () => window.removeEventListener('keydown', onKey)
   }, [selected, confirmDelete])
 
-  const goToCue = () => {
-    const n = prompt('Go to shot number:')
-    if (!n) return
-    const num = parseInt(n, 10)
+  const goToCue = (num: number) => {
     const target = scene.shots.find((s) => s.number === num)
     if (target) {
       onSelectShot(target.id)
       document.getElementById(`shot-${target.id}`)?.scrollIntoView({ block: 'center' })
     }
+    setGoToOpen(false)
   }
 
   return (
@@ -141,7 +148,7 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
           ))}
         </div>
         <div className="sl-controls-right">
-          <button className="btn sm" onClick={goToCue}>
+          <button className="btn sm" onClick={() => { setGoToValue(''); setGoToOpen(true) }}>
             <Icon name="target" size={12} /> Go to Cue
           </button>
           <div className="input sm sl-search">
@@ -191,7 +198,7 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
         <div className="slh script">Script Text</div>
       </div>
 
-      <div className="sl-rows">
+      <div className="sl-rows" ref={rowsRef}>
         {visibleRows.length === 0 && (
           <div className="sl-empty">
             <div className="sl-empty-title">NO SHOTS ASSIGNED</div>
@@ -247,11 +254,10 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
             <div
               key={s.id}
               id={`shot-${s.id}`}
+              // Click selects the cue (highlights in script) — does NOT open the
+              // detail panel. The edit button (visible on hover) opens that. (#9)
               className={`shot-row ${selectedShotId === s.id ? 'sel' : ''} ${checked ? 'multi-sel' : ''}`}
-              onClick={() => {
-                onSelectShot(s.id)
-                onOpenDetail(s.id)
-              }}
+              onClick={() => onSelectShot(s.id)}
             >
               <button
                 className={`row-check ${checked ? 'on' : ''}`}
@@ -278,6 +284,18 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
                 className="sr-script"
                 dangerouslySetInnerHTML={{ __html: richSlice(s.startIndex, s.endIndex) || '—' }}
               />
+              {/* Edit button — appears on hover, opens the detail panel (#9). */}
+              <button
+                className="sr-edit"
+                title="Edit cue"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectShot(s.id)
+                  onOpenDetail(s.id)
+                }}
+              >
+                <Icon name="edit" size={12} />
+              </button>
             </div>
           )
         })}
@@ -285,6 +303,50 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
 
       {detailShot && (
         <ShotDetailPanel scene={scene} shot={detailShot} cameras={cameras} onClose={() => onOpenDetail(null)} />
+      )}
+
+      {goToOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => e.target === e.currentTarget && setGoToOpen(false)}
+          onKeyDown={(e) => e.key === 'Escape' && setGoToOpen(false)}
+        >
+          <div className="modal" role="dialog" aria-modal="true">
+            <div className="modal-head">
+              <div>
+                <div className="eyebrow">Cue List</div>
+                <h3>Go to Cue</h3>
+              </div>
+              <button className="close" onClick={() => setGoToOpen(false)} aria-label="Close">
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="input">
+                <input
+                  autoFocus
+                  inputMode="numeric"
+                  placeholder="Shot number"
+                  value={goToValue}
+                  onChange={(e) => setGoToValue(e.target.value.replace(/[^0-9]/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && goToValue) goToCue(parseInt(goToValue, 10))
+                  }}
+                />
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button className="btn ghost" onClick={() => setGoToOpen(false)}>Cancel</button>
+              <button
+                className="btn primary"
+                disabled={!goToValue}
+                onClick={() => goToCue(parseInt(goToValue, 10))}
+              >
+                Go
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {confirmDelete && (

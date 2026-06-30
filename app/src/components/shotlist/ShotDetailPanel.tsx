@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useApp } from '../../state/context'
 import type { Camera, Scene, Shot } from '../../types'
 import { contrastText } from '../../lib/palette'
-import { pad3 } from '../../lib/derive'
+import { pad3, orderedShots } from '../../lib/derive'
 import { makeRichSlicer } from '../../lib/textmodel'
 import { Icon } from '../common/Icon'
+import { ConfirmModal } from '../common/ConfirmModal'
 
 interface Props {
   scene: Scene
@@ -14,7 +16,16 @@ interface Props {
 
 export function ShotDetailPanel({ scene, shot, cameras, onClose }: Props) {
   const { dispatch } = useApp()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const scriptHtml = makeRichSlicer(scene.rawScript.html)(shot.startIndex, shot.endIndex)
+
+  // Find the shot immediately before this one in script order → that camera's
+  // label is the correct prefix for an auto-generated prep note. (#13)
+  const shots = orderedShots(scene)
+  const idx = shots.findIndex((s) => s.id === shot.id)
+  const prevShot = idx > 0 ? shots[idx - 1] : null
+  const prevCam = cameras.find((c) => c.id === prevShot?.cameraId)
+  const autoGenPrepNote = `${prevCam?.label ?? cameras.find((c) => c.id === shot.cameraId)?.label ?? 'CAM'} → ${shot.shotType}`.trim()
 
   const update = (patch: Partial<Shot>) =>
     dispatch({ type: 'UPDATE_SHOT', sceneId: scene.id, shotId: shot.id, patch })
@@ -59,25 +70,20 @@ export function ShotDetailPanel({ scene, shot, cameras, onClose }: Props) {
 
           <div className="fld">
             <span className="fld-lbl">
-              Prep Note {shot.prepNoteEdited && <Icon name="edit" size={10} />}
+              Next Action
+              {shot.prepNoteStale && (
+                <span className="prep-stale-badge">Prep note may be outdated</span>
+              )}
             </span>
             <div className="input sm">
               <input value={shot.prepNote} onChange={(e) => update({ prepNote: e.target.value })} />
             </div>
-            {shot.prepNoteEdited && (
+            {shot.prepNoteStale && (
               <button
-                className="link-btn"
-                onClick={() => {
-                  const cam = cameras.find((c) => c.id === shot.cameraId)
-                  dispatch({
-                    type: 'UPDATE_SHOT',
-                    sceneId: scene.id,
-                    shotId: shot.id,
-                    patch: { prepNote: `${cam?.label || 'CAM'} → ${shot.shotType}`, prepNoteEdited: false },
-                  })
-                }}
+                className="link-btn amber"
+                onClick={() => update({ prepNote: autoGenPrepNote, prepNoteEdited: false, prepNoteStale: false })}
               >
-                Regenerate from shot type
+                Auto generate
               </button>
             )}
           </div>
@@ -103,19 +109,24 @@ export function ShotDetailPanel({ scene, shot, cameras, onClose }: Props) {
         </div>
 
         <div className="detail-foot">
-          <button
-            className="btn danger full"
-            onClick={() => {
-              if (confirm(`Delete shot ${pad3(shot.number)}?`)) {
-                dispatch({ type: 'DELETE_SHOT', sceneId: scene.id, shotId: shot.id })
-                onClose()
-              }
-            }}
-          >
+          <button className="btn danger full" onClick={() => setConfirmDelete(true)}>
             <Icon name="trash" size={13} /> Delete Shot
           </button>
         </div>
       </aside>
+      {confirmDelete && (
+        <ConfirmModal
+          eyebrow={`Shot ${pad3(shot.number)}`}
+          title="Delete this shot?"
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => {
+            dispatch({ type: 'DELETE_SHOT', sceneId: scene.id, shotId: shot.id })
+            onClose()
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </div>
   )
 }

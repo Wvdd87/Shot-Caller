@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useApp } from '../../state/context'
 import { Icon } from '../common/Icon'
+import { ConfirmModal } from '../common/ConfirmModal'
 
 export function ScenesPanel() {
   const { project, state, dispatch } = useApp()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
+  const [confirmScene, setConfirmScene] = useState<{ id: string; title: string } | null>(null)
   if (!project) return null
 
   const scenes = [...project.scenes].sort((a, b) => a.order - b.order)
@@ -80,9 +82,7 @@ export function ScenesPanel() {
                 title="Delete scene"
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (confirm(`Delete "${s.title}"? This removes its shots.`)) {
-                    dispatch({ type: 'DELETE_SCENE', sceneId: s.id })
-                  }
+                  setConfirmScene({ id: s.id, title: s.title })
                 }}
               >
                 <Icon name="trash" size={12} />
@@ -96,6 +96,20 @@ export function ScenesPanel() {
           <Icon name="plus" size={12} /> Add Scene
         </button>
       </div>
+      {confirmScene && (
+        <ConfirmModal
+          eyebrow="Scene"
+          title={`Delete "${confirmScene.title}"?`}
+          body="All shots in this scene will be removed."
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => {
+            dispatch({ type: 'DELETE_SCENE', sceneId: confirmScene.id })
+            setConfirmScene(null)
+          }}
+          onCancel={() => setConfirmScene(null)}
+        />
+      )}
     </div>
   )
 }

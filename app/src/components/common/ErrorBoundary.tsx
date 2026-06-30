@@ -1,19 +1,21 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { ConfirmModal } from './ConfirmModal'
 
 interface Props {
   children: ReactNode
 }
 interface State {
   error: Error | null
+  showConfirm: boolean
 }
 
 // Catches render-time crashes so a corrupt project or unexpected error shows a
 // recovery screen (and a way to clear local data) instead of a blank page.
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null }
+  state: State = { error: null, showConfirm: false }
 
   static getDerivedStateFromError(error: Error): State {
-    return { error }
+    return { error, showConfirm: false }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -36,20 +38,26 @@ export class ErrorBoundary extends Component<Props, State> {
             <button className="btn primary" onClick={() => window.location.reload()}>
               Reload
             </button>
-            <button
-              className="btn danger"
-              onClick={() => {
-                if (confirm('Clear ALL Shotcaller data from this browser? This cannot be undone.')) {
-                  Object.keys(localStorage)
-                    .filter((k) => k.startsWith('cueflow'))
-                    .forEach((k) => localStorage.removeItem(k))
-                  window.location.reload()
-                }
-              }}
-            >
+            <button className="btn danger" onClick={() => this.setState({ showConfirm: true })}>
               Reset App Data
             </button>
           </div>
+          {this.state.showConfirm && (
+            <ConfirmModal
+              eyebrow="Danger"
+              title="Clear all Shotcaller data?"
+              body="This removes every project from this browser and cannot be undone."
+              confirmLabel="Clear All Data"
+              danger
+              onConfirm={() => {
+                Object.keys(localStorage)
+                  .filter((k) => k.startsWith('cueflow'))
+                  .forEach((k) => localStorage.removeItem(k))
+                window.location.reload()
+              }}
+              onCancel={() => this.setState({ showConfirm: false })}
+            />
+          )}
         </div>
       </div>
     )

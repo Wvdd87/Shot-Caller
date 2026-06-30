@@ -83,14 +83,15 @@ await page.click('text=Create Project')
 await page.waitForTimeout(600)
 ok('Edit mode after create', await page.locator('.app').count()===1)
 
-// Settings: add camera, vocab, toggle
-await page.click('.rail-btn:has-text("Settings")'); await page.waitForTimeout(250)
+// Settings: add camera, vocab, toggle (#12: settings now opens as modal via rail-settings button)
+await page.click('.rail-settings'); await page.waitForTimeout(250)
 await page.click('text=Add Camera'); await page.waitForTimeout(200)
 ok('Add camera works', await page.locator('.cam-edit-row').count()===4)
 await page.click('.settings-tab:has-text("VOCAB")'); await page.waitForTimeout(150)
 await page.click('.vocab-add-row .cat-pill:has-text("Custom")'); await page.waitForTimeout(150)
 await page.locator('.vocab-add-row input').fill('CRANE MOVE'); await page.locator('.vocab-add-row input').press('Enter'); await page.waitForTimeout(200)
 ok('Add custom vocab', (await page.locator('.vocab-term').allTextContents()).some(t=>t.includes('CRANE MOVE')))
+await page.locator('.modal .close').click(); await page.waitForTimeout(200)
 
 // Import script
 await page.click('.rail-btn:has-text("Import")'); await page.waitForTimeout(250)
@@ -163,8 +164,9 @@ ok('#3 Chapter created as divider row', (await page.locator('.chapter-row').allT
 ok('#3 Chapter did NOT create a shot', await page.locator('.shot-row').count()===shotsBeforeChapter, `shots=${await page.locator('.shot-row').count()}`)
 await SHOT(page,'04-edit-with-shots')
 
-// ── DETAIL PANEL: single camera ring ──
-await page.locator('.shot-row').first().click(); await page.waitForTimeout(300)
+// ── DETAIL PANEL: single camera ring (#9: open via edit button, not row click) ──
+await page.locator('.shot-row').first().hover(); await page.waitForTimeout(150)
+await page.locator('.shot-row').first().locator('.sr-edit').click(); await page.waitForTimeout(300)
 const rings = await page.evaluate(()=>[...document.querySelectorAll('.detail-panel .cam-pick')].filter(p=>{const oc=getComputedStyle(p).outlineColor;return oc!=='rgba(0, 0, 0, 0)'}).length)
 ok('Detail panel rings exactly ONE camera', rings===1, `rings=${rings}`)
 await page.locator('.detail-panel .close').click(); await page.waitForTimeout(200)
@@ -257,6 +259,31 @@ await page.click('.hdr-tab:has-text("Live")'); await page.waitForTimeout(250)
 await page.click('.modal button:has-text("Go Live")'); await page.waitForTimeout(450)
 ok('#7 Rich text (bold) shows in live view', /<b>\s*Bloom\s*<\/b>/i.test(await page.locator('.lr-script').first().innerHTML()))
 await page.keyboard.press('Escape'); await page.waitForTimeout(200); await page.locator('.modal button:has-text("Exit to Edit")').click().catch(()=>{}); await page.waitForTimeout(300)
+
+// ════════════ #8: BATCH SELECT + DELETE cues/chapters ════════════
+await page.evaluate(()=>localStorage.clear())
+await page.goto(URL,{waitUntil:'networkidle'}); await page.waitForTimeout(400)
+await page.fill('.welcome input','Batch'); await page.click('text=Create Project'); await page.waitForTimeout(500)
+await page.click('.rail-btn:has-text("Import")'); await page.waitForTimeout(150)
+await page.click('button:has-text("Import Script")'); await page.waitForTimeout(150)
+await page.fill('.modal textarea','Alpha beta gamma delta epsilon zeta eta theta iota.')
+await page.click('text=Use pasted text'); await page.waitForTimeout(150)
+await page.click('.modal button:has-text("Continue")'); await page.waitForTimeout(150)
+await page.click('.modal button:has-text("Import Script")'); await page.waitForTimeout(450)
+await page.locator('.sidebar-close').click().catch(()=>{}); await page.waitForTimeout(300)
+for (const [a,e,cam,ty] of [[0,5,0,'WS'],[11,16,1,'CU'],[23,30,2,'MS']]) {
+  await dragInPara(0,a,e); await page.locator('.assign-pop .cam-pick').nth(cam).click(); await page.fill('.shot-type-input input',ty); await page.click('.assign-pop button:has-text("Create Shot")'); await page.waitForTimeout(300)
+}
+await page.waitForTimeout(650)
+ok('#8 Three cues created', await page.locator('.shot-row').count()===3)
+await page.locator('.shot-row .row-check').nth(0).click({force:true}); await page.waitForTimeout(100)
+await page.locator('.shot-row .row-check').nth(1).click({modifiers:['Shift'],force:true}); await page.waitForTimeout(150)
+ok('#8 Batch bar shows 2 selected', (await page.locator('.sl-batch-count').textContent()).startsWith('2'))
+await page.click('.sl-batchbar .btn.danger'); await page.waitForTimeout(200)
+ok('#8 Delete uses UI-kit modal (not native)', await page.locator('.modal:has-text("Delete")').count()===1)
+await page.click('.modal button:has-text("Delete")'); await page.waitForTimeout(650)
+ok('#8 Batch delete removed selected cues', await page.locator('.shot-row').count()===1)
+ok('#8 Remaining cue renumbered to 001', (await page.locator('.sr-num').first().textContent())==='001')
 
 // ════════════ C. LIVE MODE (quick regression) ════════════
 await page.evaluate(()=>localStorage.clear())

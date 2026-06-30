@@ -4,14 +4,14 @@ import { CAMERA_PALETTE, contrastText } from '../../lib/palette'
 import type { VocabCategory } from '../../types'
 import { Icon } from '../common/Icon'
 
-type Tab = 'CAMERAS' | 'VOCAB' | 'DISPLAY'
+type Tab = 'CAMERAS' | 'VOCAB'
 
 export function SettingsPanel() {
   const [tab, setTab] = useState<Tab>('CAMERAS')
   return (
     <div className="panel-scroll">
       <div className="settings-tabs">
-        {(['CAMERAS', 'VOCAB', 'DISPLAY'] as Tab[]).map((t) => (
+        {(['CAMERAS', 'VOCAB'] as Tab[]).map((t) => (
           <button
             key={t}
             className={`settings-tab ${tab === t ? 'active' : ''}`}
@@ -23,7 +23,6 @@ export function SettingsPanel() {
       </div>
       {tab === 'CAMERAS' && <CamerasTab />}
       {tab === 'VOCAB' && <VocabTab />}
-      {tab === 'DISPLAY' && <DisplayTab />}
     </div>
   )
 }
@@ -184,41 +183,3 @@ function VocabTab() {
   )
 }
 
-function DisplayTab() {
-  const { project, dispatch } = useApp()
-  if (!project) return null
-  const on = project.settings.showRunningTime
-
-  return (
-    <div className="settings-body">
-      <button
-        className={`toggle ${on ? 'on' : ''}`}
-        onClick={() => dispatch({ type: 'SET_SETTING', key: 'showRunningTime', value: !on })}
-      >
-        <span className="track">
-          <span className="knob" />
-        </span>
-        <span className="lbl">Show running time in Live Mode</span>
-      </button>
-
-      <div className="fld" style={{ marginTop: 'var(--s-5)' }}>
-        <span className="fld-lbl">Live script column width</span>
-        <div className="input sm">
-          <input
-            type="number"
-            min={240}
-            max={900}
-            value={project.settings.scriptTextWidth ?? 480}
-            onChange={(e) =>
-              dispatch({
-                type: 'SET_SETTING',
-                key: 'scriptTextWidth',
-                value: Math.max(240, Math.min(900, Number(e.target.value) || 480)),
-              })
-            }
-          />
-        </div>
-      </div>
-    </div>
-  )
-}

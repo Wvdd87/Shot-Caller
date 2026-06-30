@@ -6,6 +6,7 @@ import { Sidebar } from './sidebar/Sidebar'
 import { ScriptViewer, type ScriptMode } from './script/ScriptViewer'
 import { Shotlist } from './shotlist/Shotlist'
 import { ImportScriptModal } from './modals/ImportScriptModal'
+import { SettingsModal } from './modals/SettingsModal'
 
 export function EditMode({ onGoLive }: { onGoLive: () => void }) {
   const { project, activeScene } = useApp()
@@ -17,6 +18,7 @@ export function EditMode({ onGoLive }: { onGoLive: () => void }) {
   const [selectedShotId, setSelectedShotId] = useState<string | null>(null)
   const [detailShotId, setDetailShotId] = useState<string | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   if (!project) return null
 
@@ -30,7 +32,7 @@ export function EditMode({ onGoLive }: { onGoLive: () => void }) {
         canGoLive={!!activeScene && activeScene.shots.length > 0}
       />
       <div className="app-body">
-        <IconRail active={panel} onSelect={togglePanel} />
+        <IconRail active={panel} onSelect={togglePanel} onSettings={() => setShowSettings(true)} />
         <Sidebar
           active={panel}
           onClose={() => setPanel(null)}
@@ -47,6 +49,7 @@ export function EditMode({ onGoLive }: { onGoLive: () => void }) {
                   onModeChange={setScriptMode}
                   selectedShotId={selectedShotId}
                   onSelectShot={setSelectedShotId}
+                  onImportScript={() => setShowImport(true)}
                 />
               </section>
               <section className="ws-shotlist">
@@ -67,6 +70,7 @@ export function EditMode({ onGoLive }: { onGoLive: () => void }) {
       </div>
 
       {showImport && <ImportScriptModal onClose={() => setShowImport(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

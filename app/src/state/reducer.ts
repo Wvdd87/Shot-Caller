@@ -197,13 +197,22 @@ export function reducer(state: AppState, action: Action): AppState {
         state,
         patchScene(project, action.sceneId, (s) => {
           const cam = project.settings.cameras.find((c) => c.id === action.cameraId)
+          // prepNote answers "what should the PREVIOUS camera prepare next?" — so
+          // the prefix is the previous shot's camera, not this shot's camera. (#13)
+          const prevShot = [...s.shots]
+            .sort((a, b) => a.startIndex - b.startIndex)
+            .reverse()
+            .find((sh) => sh.startIndex < action.startIndex)
+          const prevCam = project.settings.cameras.find((c) => c.id === prevShot?.cameraId)
+          const prepLabel = prevCam?.label ?? cam?.label ?? 'CAM'
           const shot: Shot = {
             id: uid(),
             number: 0,
             cameraId: action.cameraId,
             shotType: action.shotType,
-            prepNote: autoPrep(cam?.label || 'CAM', action.shotType),
+            prepNote: autoPrep(prepLabel, action.shotType),
             prepNoteEdited: false,
+            prepNoteStale: false,
             startIndex: action.startIndex,
             endIndex: action.endIndex,
             notes: '',
@@ -220,16 +229,16 @@ export function reducer(state: AppState, action: Action): AppState {
           const shots = s.shots.map((sh) => {
             if (sh.id !== action.shotId) return sh
             const next = { ...sh, ...action.patch }
-            // Keep prep note in sync when shot type changes and note wasn't hand-edited.
-            if (
-              action.patch.shotType !== undefined &&
-              !next.prepNoteEdited &&
-              action.patch.prepNote === undefined
-            ) {
-              const cam = project.settings.cameras.find((c) => c.id === next.cameraId)
-              next.prepNote = autoPrep(cam?.label || 'CAM', next.shotType)
+            // When shot type changes, flag the prep note as potentially outdated
+            // rather than auto-overwriting. The user can click "auto generate"
+            // in the detail panel to regenerate from the previous camera. (#13)
+            if (action.patch.shotType !== undefined && action.patch.prepNote === undefined) {
+              next.prepNoteStale = true
             }
-            if (action.patch.prepNote !== undefined) next.prepNoteEdited = true
+            if (action.patch.prepNote !== undefined) {
+              next.prepNoteEdited = true
+              next.prepNoteStale = false
+            }
             return next
           })
           return { ...s, shots: renumber(shots) }

@@ -117,6 +117,7 @@ function normalizeShot(raw: unknown): Shot | null {
     shotType: typeof s.shotType === 'string' ? s.shotType : '',
     prepNote: typeof s.prepNote === 'string' ? s.prepNote : '',
     prepNoteEdited: s.prepNoteEdited === true,
+    prepNoteStale: s.prepNoteStale === true,
     startIndex: s.startIndex,
     endIndex: s.endIndex,
     notes: typeof s.notes === 'string' ? s.notes : '',
