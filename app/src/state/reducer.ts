@@ -50,6 +50,7 @@ export type Action =
   | { type: 'CREATE_CHAPTER'; sceneId: string; title: string; scriptIndex: number; endIndex?: number }
   | { type: 'UPDATE_CHAPTER'; sceneId: string; chapterId: string; patch: Partial<Chapter> }
   | { type: 'DELETE_CHAPTER'; sceneId: string; chapterId: string }
+  | { type: 'DELETE_ITEMS'; sceneId: string; shotIds: string[]; chapterIds: string[] }
   // cameras
   | { type: 'ADD_CAMERA' }
   | { type: 'UPDATE_CAMERA'; cameraId: string; patch: Partial<Camera> }
@@ -305,6 +306,20 @@ export function reducer(state: AppState, action: Action): AppState {
           chapters: s.chapters.filter((c) => c.id !== action.chapterId),
         })),
       )
+
+    case 'DELETE_ITEMS': {
+      // Atomic batch delete of selected shots + chapters (renumber once).
+      const shotIds = new Set(action.shotIds)
+      const chapterIds = new Set(action.chapterIds)
+      return withProject(
+        state,
+        patchScene(project, action.sceneId, (s) => ({
+          ...s,
+          shots: renumber(s.shots.filter((sh) => !shotIds.has(sh.id))),
+          chapters: s.chapters.filter((c) => !chapterIds.has(c.id)),
+        })),
+      )
+    }
 
     // ── cameras ──
     case 'ADD_CAMERA': {

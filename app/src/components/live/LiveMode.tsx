@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../../state/context'
 import { buildRows, cameraStatuses, fmtClock, orderedShots, pad3 } from '../../lib/derive'
-import { displayText } from '../../lib/script'
+import { makeRichSlicer } from '../../lib/textmodel'
 import { contrastText } from '../../lib/palette'
 import { Icon } from '../common/Icon'
 import { JumpModal } from './JumpModal'
@@ -19,6 +19,8 @@ export function LiveMode({ onExit }: { onExit: () => void }) {
   const sceneId = scene?.id ?? ''
   const shots = useMemo(() => (scene ? orderedShots(scene) : []), [scene])
   const rows = useMemo(() => (scene ? buildRows(scene) : []), [scene])
+  // Formatted (bold/italic/underline) script slice per cue (#7).
+  const richSlice = useMemo(() => makeRichSlicer(scene?.rawScript.html ?? ''), [scene?.rawScript.html])
   const current = scene?.liveState.currentShotIndex ?? 0
   const live = scene?.liveState
 
@@ -146,7 +148,10 @@ export function LiveMode({ onExit }: { onExit: () => void }) {
                     <span className="lr-camnum mono" style={{ color: cam?.color }}>{cam?.number}</span>
                     <span className="lr-shottype">{s.shotType}</span>
                   </div>
-                  <div className="lr-script">{displayText(scene.rawScript.plainText.slice(s.startIndex, s.endIndex))}</div>
+                  <div
+                    className="lr-script"
+                    dangerouslySetInnerHTML={{ __html: richSlice(s.startIndex, s.endIndex) }}
+                  />
                 </div>
               )
             })}

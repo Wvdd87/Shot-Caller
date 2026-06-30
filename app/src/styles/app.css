@@ -371,10 +371,35 @@
 .export-menu button { display: block; width: 100%; text-align: left; padding: 8px 12px; background: none; border: none; border-bottom: 1px solid var(--hair); color: var(--txt); cursor: pointer; font-size: 12px; }
 .export-menu button:hover { background: var(--surface2); color: var(--txt-hi); }
 
-.sl-headers, .shot-row, .chapter-row {
-  display: grid; grid-template-columns: 48px 200px 180px 1fr; align-items: center;
+.sl-headers, .shot-row {
+  display: grid; grid-template-columns: 28px 48px 200px 180px 1fr; align-items: center;
 }
 .sl-headers { height: 28px; background: var(--surface); border-bottom: 1px solid var(--hair2); flex-shrink: 0; }
+
+/* Batch-select checkbox (#8) — square, amber when checked, per UI kit. */
+.row-check {
+  width: 16px; height: 16px; margin: 0 auto;
+  display: grid; place-items: center;
+  background: var(--surface2); border: 1px solid var(--hair3); cursor: pointer;
+  color: #06060a; opacity: 0; transition: opacity 80ms linear;
+}
+.row-check svg { stroke: #06060a; stroke-width: 2.6; }
+.shot-row:hover .row-check, .chapter-row:hover .row-check,
+.shotlist.selecting .row-check, .row-check.on, .row-check.indet { opacity: 1; }
+.row-check.on, .row-check.indet { background: var(--amber); border-color: var(--amber); }
+.check-dash { width: 8px; height: 2px; background: #06060a; }
+.sl-headers .row-check { opacity: 0.55; }
+.sl-headers:hover .row-check { opacity: 1; }
+.shot-row.multi-sel, .chapter-row.multi-sel { background: var(--amber-bg); box-shadow: inset 2px 0 0 var(--amber); }
+
+/* Batch action bar */
+.sl-batchbar {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 34px; padding: 0 var(--s-3); flex-shrink: 0;
+  background: var(--amber-bg); border-bottom: 1px solid var(--amber);
+}
+.sl-batch-count { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--amber); }
+.sl-batch-actions { display: flex; gap: var(--s-2); }
 .slh { font-family: var(--cond); font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--txt-mid); padding: 0 var(--s-3); }
 .sl-rows { flex: 1; overflow-y: auto; }
 .shot-row { min-height: 48px; border-bottom: 1px solid var(--hair); border-left: 2px solid transparent; cursor: pointer; padding: 6px 0; }
@@ -386,7 +411,14 @@
 .sr-shottype { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--txt-hi); }
 .sr-script { padding: 0 var(--s-3); font-size: 13px; color: var(--txt); line-height: 1.4; }
 
-.chapter-row { min-height: 30px; grid-template-columns: 1fr auto; background: var(--surface); border-bottom: 1px solid var(--hair); padding: 0 var(--s-3); }
+/* Rich-text formatting (bold/italic/underline) carried from the script into the
+   cue list, live view, detail + jump previews (#7). Bold lifts to --txt-hi so it
+   reads in the dim list. */
+.sr-script b, .lr-script b, .jp-script b, .detail-script b { font-weight: 700; color: var(--txt-hi); }
+.sr-script i, .lr-script i, .jp-script i, .detail-script i { font-style: italic; }
+.sr-script u, .lr-script u, .jp-script u, .detail-script u { text-decoration: underline; }
+
+.chapter-row { display: grid; align-items: center; min-height: 30px; grid-template-columns: 28px 1fr auto; background: var(--surface); border-bottom: 1px solid var(--hair); padding: 0 var(--s-3) 0 0; }
 .chapter-row.orphan { background: var(--danger-bg); }
 .chapter-title { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--txt-hi); text-transform: uppercase; letter-spacing: 0.04em; }
 .chapter-warn { color: var(--amber); font-weight: 600; font-size: 10px; margin-left: 8px; text-transform: none; letter-spacing: 0; }

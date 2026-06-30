@@ -2,7 +2,7 @@ import { useApp } from '../../state/context'
 import type { Camera, Scene, Shot } from '../../types'
 import { contrastText } from '../../lib/palette'
 import { pad3 } from '../../lib/derive'
-import { displayText } from '../../lib/script'
+import { makeRichSlicer } from '../../lib/textmodel'
 import { Icon } from '../common/Icon'
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
 
 export function ShotDetailPanel({ scene, shot, cameras, onClose }: Props) {
   const { dispatch } = useApp()
-  const scriptText = displayText(scene.rawScript.plainText.slice(shot.startIndex, shot.endIndex))
+  const scriptHtml = makeRichSlicer(scene.rawScript.html)(shot.startIndex, shot.endIndex)
 
   const update = (patch: Partial<Shot>) =>
     dispatch({ type: 'UPDATE_SHOT', sceneId: scene.id, shotId: shot.id, patch })
@@ -96,7 +96,9 @@ export function ShotDetailPanel({ scene, shot, cameras, onClose }: Props) {
 
           <div className="fld">
             <span className="fld-lbl">Script Text</span>
-            <div className="detail-script">“{scriptText || '…'}”</div>
+            <div className="detail-script">
+              “<span dangerouslySetInnerHTML={{ __html: scriptHtml || '…' }} />”
+            </div>
           </div>
         </div>
 

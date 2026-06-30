@@ -22,7 +22,8 @@
 ✅ #6B Text should only be able to belong to 1 cue. never multiple.
    DONE — overlapping selections are rejected on create (clear inline message naming the conflicting cue), and handle-resize is clamped to the neighbouring cues in the reducer so a boundary can touch but never cross into another cue. Verified: A.end == B.start, no character ever in two cues. Suite 42/42 + dedicated clamp/gap/double-click test 7/7, 0 JS errors.
 
-#7 rich text edits must show up in the cue list on the right and also in the live view
+✅ #7 rich text edits must show up in the cue list on the right and also in the live view
+   DONE — the cue list, live view, shot detail panel and jump preview now render each cue's script with its bold/italic/underline intact (previously they showed stripped plain text). A new makeRichSlicer (textmodel.ts) reuses the same character-walk as the cue indices, builds a Range for the cue's [start,end), clones the formatted contents and serializes to safe inline HTML (only b/i/u tags, no attributes — script/img/handlers are reduced to escaped text, so it doubles as a sanitizer). Verified: bolding a word in Text Mode shows in shotlist + live, plainText indices stay correct, formatting survives reload, no script tags leak. Suite 46/46, 0 JS errors.
 
 #8 Make it possible to batch select cue's and chapters to delete them in the cue list
 

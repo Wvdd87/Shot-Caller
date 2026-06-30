@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Camera, Scene } from '../../types'
 import { orderedShots, pad3 } from '../../lib/derive'
-import { displayText } from '../../lib/script'
+import { makeRichSlicer } from '../../lib/textmodel'
 import { contrastText } from '../../lib/palette'
 import { Icon } from '../common/Icon'
 
@@ -65,7 +65,10 @@ export function JumpModal({ scene, cameras, onJump, onClose }: Props) {
                 {cam?.number}
               </span>
               <span className="jp-type">{target.shotType}</span>
-              <span className="jp-script">{displayText(scene.rawScript.plainText.slice(target.startIndex, target.endIndex))}</span>
+              <span
+                className="jp-script"
+                dangerouslySetInnerHTML={{ __html: makeRichSlicer(scene.rawScript.html)(target.startIndex, target.endIndex) }}
+              />
             </div>
           )}
 

@@ -12,7 +12,7 @@ page.on('pageerror', e => errors.push('PAGEERROR: '+e.message))
 page.on('console', m => { if (m.type()==='error') errors.push('CONSOLE: '+m.text()) })
 page.on('dialog', async d => { if (d.type()==='prompt') await d.accept('1'); else await d.accept() })
 
-const URL='http://localhost:5173/'
+const URL = process.env.SC_URL || 'http://localhost:5173/'
 
 // Drag-select a character range WITHIN one paragraph of the shared .sv-doc.
 async function dragInPara(paraIdx, s, e) {
@@ -243,6 +243,20 @@ ok('#6 Deep-line selection maps to EXACT characters', exSel===phrase, `got "${ex
 await page.locator('.assign-pop .cam-pick').nth(0).click(); await page.fill('.shot-type-input input','MCU'); await page.click('.assign-pop button:has-text("Create Shot")'); await page.waitForTimeout(650)
 const exSlice=await page.evaluate(()=>{const i=JSON.parse(localStorage.getItem('cueflow_index'));const s=JSON.parse(localStorage.getItem('cueflow_project_'+i[0].id)).scenes[0];const sh=s.shots[0];return s.rawScript.plainText.slice(sh.startIndex,sh.endIndex).replace(/\s+/g,' ').trim()})
 ok('#6 Stored cue slice matches selection exactly', exSlice===phrase, `got "${exSlice}"`)
+
+// ════════════ #7: RICH TEXT shows in cue list + live view ════════════
+// Bold a word inside the cue in Text Mode, then confirm the formatting renders
+// in the shotlist and the live cue table (and the plainText slice is unchanged).
+await page.click('.sv-mode:has-text("Text Mode")'); await page.waitForTimeout(300)
+const bpt=await page.evaluate(()=>{const tn=document.createTreeWalker(document.querySelector('.sv-doc p'),NodeFilter.SHOW_TEXT).nextNode();const i=tn.textContent.indexOf('Bloom');const r=document.createRange();r.setStart(tn,i);r.setEnd(tn,i+5);const b=r.getClientRects()[0];return{x:b.left+b.width/2,y:b.top+b.height/2}})
+await page.mouse.dblclick(bpt.x,bpt.y); await page.waitForTimeout(150)
+await page.click('.sv-format button[title="Bold"]'); await page.waitForTimeout(200)
+await page.click('.sv-mode:has-text("Cue Mode")'); await page.waitForTimeout(400)
+ok('#7 Rich text (bold) shows in shotlist', /<b>\s*Bloom\s*<\/b>/i.test(await page.locator('.sr-script').first().innerHTML()))
+await page.click('.hdr-tab:has-text("Live")'); await page.waitForTimeout(250)
+await page.click('.modal button:has-text("Go Live")'); await page.waitForTimeout(450)
+ok('#7 Rich text (bold) shows in live view', /<b>\s*Bloom\s*<\/b>/i.test(await page.locator('.lr-script').first().innerHTML()))
+await page.keyboard.press('Escape'); await page.waitForTimeout(200); await page.locator('.modal button:has-text("Exit to Edit")').click().catch(()=>{}); await page.waitForTimeout(300)
 
 // ════════════ C. LIVE MODE (quick regression) ════════════
 await page.evaluate(()=>localStorage.clear())

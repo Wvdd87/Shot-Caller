@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../state/context'
 import type { Camera, Scene } from '../../types'
 import { buildRows, pad3 } from '../../lib/derive'
 import { displayText } from '../../lib/script'
+import { makeRichSlicer } from '../../lib/textmodel'
 import { contrastText } from '../../lib/palette'
 import { exportShotlistCsv, exportShotlistPdf } from '../../lib/exporters'
 import { Icon } from '../common/Icon'
+import { ConfirmModal } from '../common/ConfirmModal'
 import { CameraStatusBar } from './CameraStatusBar'
 import { ShotDetailPanel } from './ShotDetailPanel'
 
@@ -24,10 +26,16 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
   const [search, setSearch] = useState('')
   const [showExport, setShowExport] = useState(false)
   const [editingChapter, setEditingChapter] = useState<string | null>(null)
+  // Batch selection of cue + chapter rows (#8).
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [lastClicked, setLastClicked] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const rows = useMemo(() => buildRows(scene), [scene])
   const detailShot = scene.shots.find((s) => s.id === detailShotId) || null
   const text = scene.rawScript.plainText
+  // Formatted (bold/italic/underline) slice of the script for each cue (#7).
+  const richSlice = useMemo(() => makeRichSlicer(scene.rawScript.html), [scene.rawScript.html])
 
   const visibleRows = rows.filter((row) => {
     if (row.kind === 'chapter') return true
@@ -45,6 +53,65 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
     return true
   })
 
+  const rowId = (row: (typeof visibleRows)[number]) =>
+    row.kind === 'chapter' ? row.chapter.id : row.shot.id
+  const visibleIds = visibleRows.map(rowId)
+
+  const toggleSelect = (id: string, shiftKey: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (shiftKey && lastClicked && lastClicked !== id) {
+        const a = visibleIds.indexOf(lastClicked)
+        const b = visibleIds.indexOf(id)
+        if (a !== -1 && b !== -1) {
+          for (let i = Math.min(a, b); i <= Math.max(a, b); i++) next.add(visibleIds[i])
+        }
+      } else if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+    setLastClicked(id)
+  }
+
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
+  const someSelected = selected.size > 0 && !allSelected
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(visibleIds))
+    setLastClicked(null)
+  }
+  const clearSelection = () => {
+    setSelected(new Set())
+    setLastClicked(null)
+  }
+
+  const doDelete = () => {
+    const shotIds = scene.shots.filter((s) => selected.has(s.id)).map((s) => s.id)
+    const chapterIds = scene.chapters.filter((c) => selected.has(c.id)).map((c) => c.id)
+    dispatch({ type: 'DELETE_ITEMS', sceneId: scene.id, shotIds, chapterIds })
+    if (selectedShotId && shotIds.includes(selectedShotId)) onSelectShot(null)
+    if (detailShotId && shotIds.includes(detailShotId)) onOpenDetail(null)
+    clearSelection()
+    setConfirmDelete(false)
+  }
+
+  // Delete / Backspace removes the current batch selection (unless typing).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (selected.size === 0 || confirmDelete) return
+      const t = e.target as HTMLElement
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        setConfirmDelete(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selected, confirmDelete])
+
   const goToCue = () => {
     const n = prompt('Go to shot number:')
     if (!n) return
@@ -57,7 +124,7 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
   }
 
   return (
-    <div className="shotlist">
+    <div className={`shotlist ${selected.size > 0 ? 'selecting' : ''}`}>
       <CameraStatusBar scene={scene} cameras={cameras} />
 
       <div className="sl-controls">
@@ -95,7 +162,29 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="sl-batchbar">
+          <span className="sl-batch-count mono">{selected.size} SELECTED</span>
+          <div className="sl-batch-actions">
+            <button className="btn sm ghost" onClick={clearSelection}>
+              Clear
+            </button>
+            <button className="btn sm danger" onClick={() => setConfirmDelete(true)}>
+              <Icon name="trash" size={12} /> Delete {selected.size}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="sl-headers">
+        <button
+          className={`row-check ${allSelected ? 'on' : someSelected ? 'indet' : ''}`}
+          onClick={toggleAll}
+          title={allSelected ? 'Deselect all' : 'Select all'}
+        >
+          {allSelected && <Icon name="check" size={11} />}
+          {someSelected && <span className="check-dash" />}
+        </button>
         <div className="slh num">#</div>
         <div className="slh action">Next Action</div>
         <div className="slh cam">Cam / Shot</div>
@@ -112,8 +201,19 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
         {visibleRows.map((row) => {
           if (row.kind === 'chapter') {
             const ch = row.chapter
+            const checked = selected.has(ch.id)
             return (
-              <div key={ch.id} className={`chapter-row ${row.orphan ? 'orphan' : ''}`}>
+              <div key={ch.id} className={`chapter-row ${row.orphan ? 'orphan' : ''} ${checked ? 'multi-sel' : ''}`}>
+                <button
+                  className={`row-check ${checked ? 'on' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleSelect(ch.id, e.shiftKey)
+                  }}
+                  title="Select chapter"
+                >
+                  {checked && <Icon name="check" size={11} />}
+                </button>
                 {editingChapter === ch.id ? (
                   <input
                     className="chapter-edit"
@@ -142,16 +242,27 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
           }
           const s = row.shot
           const cam = cameras.find((c) => c.id === s.cameraId)
+          const checked = selected.has(s.id)
           return (
             <div
               key={s.id}
               id={`shot-${s.id}`}
-              className={`shot-row ${selectedShotId === s.id ? 'sel' : ''}`}
+              className={`shot-row ${selectedShotId === s.id ? 'sel' : ''} ${checked ? 'multi-sel' : ''}`}
               onClick={() => {
                 onSelectShot(s.id)
                 onOpenDetail(s.id)
               }}
             >
+              <button
+                className={`row-check ${checked ? 'on' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleSelect(s.id, e.shiftKey)
+                }}
+                title="Select shot"
+              >
+                {checked && <Icon name="check" size={11} />}
+              </button>
               <div className="sr-num mono">{pad3(s.number)}</div>
               <div className="sr-action">{s.prepNote}</div>
               <div className="sr-cam">
@@ -163,7 +274,10 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
                 </span>
                 <span className="sr-shottype">{s.shotType}</span>
               </div>
-              <div className="sr-script">{displayText(text.slice(s.startIndex, s.endIndex)) || '—'}</div>
+              <div
+                className="sr-script"
+                dangerouslySetInnerHTML={{ __html: richSlice(s.startIndex, s.endIndex) || '—' }}
+              />
             </div>
           )
         })}
@@ -171,6 +285,18 @@ export function Shotlist({ scene, cameras, selectedShotId, onSelectShot, detailS
 
       {detailShot && (
         <ShotDetailPanel scene={scene} shot={detailShot} cameras={cameras} onClose={() => onOpenDetail(null)} />
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          eyebrow="Cue List"
+          title={`Delete ${selected.size} item${selected.size !== 1 ? 's' : ''}?`}
+          body="The selected cues and chapters will be removed from this scene. This can't be undone."
+          confirmLabel={`Delete ${selected.size}`}
+          danger
+          onConfirm={doDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
       )}
     </div>
   )

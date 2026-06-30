@@ -204,3 +204,66 @@ function comparePoints(an: Node, ao: number, bn: Node, bo: number): number {
     return 0
   }
 }
+
+// ── Rich (formatted) slice extraction ───────────────────────────────
+// The cue list and live view show each cue's script text WITH the bold/italic/
+// underline the director applied in Text Mode. We reuse the same `compute` walk
+// (so indices line up exactly with plainText) to build a Range for [start,end),
+// clone its contents, and serialize to a safe inline-only HTML string.
+
+const INLINE_TAGS: Record<string, string> = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u' }
+const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'H1', 'H2', 'H3', 'H4'])
+
+function escapeText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// Serialize a node to HTML keeping ONLY whitelisted inline tags (no attributes),
+// escaping all text. This doubles as a sanitizer — script/img/handlers/etc. are
+// reduced to their (escaped) text content and can never execute.
+function serializeInline(n: Node): string {
+  if (n.nodeType === Node.TEXT_NODE) return escapeText(n.nodeValue || '')
+  if (n.nodeType !== Node.ELEMENT_NODE) return ''
+  const el = n as Element
+  if (el.tagName === 'BR') return ' '
+  let inner = ''
+  el.childNodes.forEach((c) => {
+    inner += serializeInline(c)
+  })
+  const mapped = INLINE_TAGS[el.tagName]
+  if (mapped) return inner ? `<${mapped}>${inner}</${mapped}>` : ''
+  if (BLOCK_TAGS.has(el.tagName)) return inner + ' ' // block boundary → a space
+  return inner // unknown/unsafe wrapper → keep only its text
+}
+
+function sanitizeFragment(frag: DocumentFragment): string {
+  let out = ''
+  frag.childNodes.forEach((c) => {
+    out += serializeInline(c)
+  })
+  return out.replace(/\s+/g, ' ').trim()
+}
+
+// Parse the script HTML once and return a slicer that maps a [start,end)
+// plainText range to formatted inline HTML for display.
+export function makeRichSlicer(html: string): (start: number, end: number) => string {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html')
+  const { carets, plainText } = compute(doc.body)
+  const max = plainText.length
+  return (start, end) => {
+    const s = Math.max(0, Math.min(start, max))
+    const e = Math.max(s, Math.min(end, max))
+    if (e <= s) return ''
+    const a = carets[s]
+    const b = carets[e]
+    if (!a || !b) return ''
+    const range = doc.createRange()
+    try {
+      range.setStart(a.node, a.offset)
+      range.setEnd(b.node, b.offset)
+    } catch {
+      return ''
+    }
+    return sanitizeFragment(range.cloneContents())
+  }
+}
